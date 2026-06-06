@@ -29,3 +29,7 @@ Thumbs.db
 *.njsproj
 *.sln
 *.swp
+
+# Local portable tooling
+node-portable/
+install_node.py
