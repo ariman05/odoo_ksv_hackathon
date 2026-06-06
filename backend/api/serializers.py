@@ -142,7 +142,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
         fields = ('id', 'po', 'po_number', 'vendor_name', 'invoice_number', 'total_amount', 'status', 'due_date', 'comments', 'created_at')
-        read_only_fields = ('status',)
+        read_only_fields = ('status', 'invoice_number')
 
     def get_vendor_name(self, obj):
         return obj.po.quotation.vendor.company_name or obj.po.quotation.vendor.username
