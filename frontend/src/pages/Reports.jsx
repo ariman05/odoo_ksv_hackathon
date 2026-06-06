@@ -44,15 +44,15 @@ export default function Reports() {
         />
         <StatCard 
           title="Total Bids Submitted" 
-          value={isLoading ? '...' : '12'} 
+          value={isLoading ? '...' : stats.total_bids} 
           icon={TrendingUp} 
-          description="Average 3 bids per RFQ" 
+          description="Total quotations received" 
         />
         <StatCard 
           title="Fulfillment Rate" 
-          value="92%" 
+          value={isLoading ? '...' : stats.fulfillment_rate} 
           icon={Award} 
-          description="POs delivered on time" 
+          description="POs completed successfully" 
         />
         <StatCard 
           title="Authorized Suppliers" 

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, ChevronRight, Eye, ClipboardList, 
-  Send, Users, CheckCircle2, AlertCircle, Trash2, ArrowLeft, Loader2
+  Send, Users, CheckCircle2, AlertCircle, Trash2, ArrowLeft, Loader2, Info
 } from 'lucide-react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,6 +11,7 @@ import * as z from 'zod';
 import api from '../api.js';
 import RFQForm from '../components/RFQForm.jsx';
 import QuotationCompare from '../components/QuotationCompare.jsx';
+import { CardSkeleton, TableRowSkeleton, Skeleton } from '../components/Skeleton.jsx';
 
 // Quote Schema for Submission
 const quoteSchema = z.object({
@@ -40,6 +42,8 @@ export default function RFQs() {
     }
   });
 
+  const rfqList = Array.isArray(rfqs) ? rfqs : (rfqs?.results || []);
+
   // Quote Submission Mutation
   const submitQuoteMutation = useMutation({
     mutationFn: async (quoteData) => {
@@ -49,6 +53,7 @@ export default function RFQs() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rfqs'] });
       setView('list');
+      alert("Quotation bid submitted successfully!");
     }
   });
 
@@ -95,7 +100,6 @@ export default function RFQs() {
   };
 
   const handleQuoteSubmit = (data) => {
-    // Inject RFQ ID and calculate total price
     const submitData = {
       rfq: selectedRfq.id,
       delivery_date: data.delivery_date,
@@ -112,7 +116,11 @@ export default function RFQs() {
   };
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6"
+    >
       {/* View router */}
       {view === 'create' && (
         <RFQForm 
@@ -125,51 +133,51 @@ export default function RFQs() {
       )}
 
       {view === 'compare' && (
-        <div>
+        <div className="space-y-4">
           <button 
             onClick={() => setView('list')}
-            className="mb-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm"
+            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-xs font-bold uppercase tracking-wider"
           >
-            <ArrowLeft size={16} /> Back to RFQs List
+            <ArrowLeft size={14} /> Back to RFQs List
           </button>
           <QuotationCompare rfq={selectedRfq} />
         </div>
       )}
 
       {view === 'submit-quote' && selectedRfq && (
-        <div className="glass-panel p-8 rounded-3xl border border-slate-800/60 shadow-2xl space-y-6">
+        <div className="glass-panel p-6 lg:p-8 rounded-3xl border border-slate-800/60 shadow-2xl space-y-6 max-w-3xl mx-auto">
           <button 
             onClick={() => setView('list')}
-            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm mb-4"
+            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-xs font-bold uppercase tracking-wider mb-2"
           >
-            <ArrowLeft size={16} /> Back to RFQs List
+            <ArrowLeft size={14} /> Back to RFQs
           </button>
 
           <div className="border-b border-slate-800/40 pb-4">
-            <h3 className="font-display font-bold text-lg text-white">Submit Quotation</h3>
-            <p className="text-xs text-slate-400">Submit pricing for: <span className="text-brand-400 font-semibold">{selectedRfq.title}</span></p>
+            <h3 className="font-display font-extrabold text-lg text-white tracking-tight">Submit Quotation Bid</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Submit pricing bid for: <span className="text-brand-400 font-bold">{selectedRfq.title}</span></p>
           </div>
 
           <form onSubmit={handleSubmit(handleQuoteSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Promised Delivery Date *</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Promised Delivery Date *</label>
                 <input 
                   {...register('delivery_date')} 
                   type="date"
-                  className="w-full px-4 py-2.5 bg-slate-900/60 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-brand-500 text-sm"
+                  className="input-premium"
                 />
                 {errors.delivery_date && <p className="text-xs text-red-400">{errors.delivery_date.message}</p>}
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Shipping & Handling Cost ($) *</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Shipping & Handling Cost ($) *</label>
                 <input 
                   {...register('shipping_cost', { valueAsNumber: true })} 
                   type="number"
                   step="0.01"
                   min="0"
-                  className="w-full px-4 py-2.5 bg-slate-900/60 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-brand-500 text-sm"
+                  className="input-premium"
                 />
                 {errors.shipping_cost && <p className="text-xs text-red-400">{errors.shipping_cost.message}</p>}
               </div>
@@ -177,15 +185,15 @@ export default function RFQs() {
 
             {/* Quote Pricing Table */}
             <div className="space-y-4">
-              <h4 className="text-xs font-semibold text-brand-400 uppercase tracking-wider border-t border-slate-800/40 pt-4">Bidding Prices per Item</h4>
+              <h4 className="text-xs font-bold text-brand-400 uppercase tracking-wider border-t border-slate-800/40 pt-4">Bidding Prices per Item</h4>
               <div className="space-y-3">
                 {selectedRfq.items.map((item, idx) => (
-                  <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center p-3 bg-slate-900/30 border border-slate-800/60 rounded-xl">
+                  <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center p-4 bg-slate-950/30 border border-slate-900 rounded-2xl">
                     <div className="md:col-span-6">
-                      <p className="text-xs font-semibold text-white">{item.item_name}</p>
-                      <p className="text-[10px] text-slate-400">{item.description}</p>
+                      <p className="text-xs font-bold text-white">{item.item_name}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{item.description}</p>
                     </div>
-                    <div className="md:col-span-2 text-xs text-slate-300">
+                    <div className="md:col-span-2 text-xs text-slate-400 font-semibold">
                       Qty: {item.quantity}
                     </div>
                     <div className="md:col-span-4 flex items-center gap-2">
@@ -196,7 +204,7 @@ export default function RFQs() {
                         step="0.01"
                         min="0.01"
                         placeholder="Unit Price"
-                        className="w-full px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-brand-500"
+                        className="w-full px-3 py-2 bg-slate-950/40 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
                       />
                     </div>
                   </div>
@@ -205,18 +213,18 @@ export default function RFQs() {
             </div>
 
             {/* Total summary */}
-            <div className="p-4 bg-brand-500/5 border border-brand-500/20 rounded-xl flex items-center justify-between text-sm">
+            <div className="p-4 bg-brand-500/5 border border-brand-500/15 rounded-xl flex items-center justify-between text-xs">
               <span className="text-slate-300 font-semibold">Total Bid Amount (including shipping):</span>
-              <span className="text-brand-400 font-bold text-lg">${quoteTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-brand-400 font-black text-base">${quoteTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Comments / Proposal terms</label>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Comments / Proposal terms</label>
               <textarea 
                 {...register('comments')} 
                 placeholder="Include payment terms, warranty info, or specs exceptions..." 
                 rows={3}
-                className="w-full px-4 py-2.5 bg-slate-900/60 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 text-sm resize-none"
+                className="w-full px-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors text-sm resize-none"
               />
             </div>
 
@@ -225,14 +233,14 @@ export default function RFQs() {
               <button
                 type="button"
                 onClick={() => setView('list')}
-                className="px-5 py-2.5 bg-slate-900 border border-slate-800 text-slate-300 rounded-xl font-semibold text-xs hover:bg-slate-800"
+                className="btn-secondary-premium"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={submitQuoteMutation.isPending}
-                className="px-5 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 hover-scale shadow-lg shadow-brand-500/20"
+                className="btn-premium disabled:opacity-50"
               >
                 {submitQuoteMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Submit Bid
               </button>
@@ -244,34 +252,34 @@ export default function RFQs() {
       {view === 'list' && (
         <div className="space-y-6">
           {/* Action Row */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 glass-card rounded-2xl border border-slate-800/40">
-            <div className="flex gap-2.5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 glass-card rounded-2xl border border-slate-800/40 relative overflow-hidden">
+            <div className="flex gap-2">
               <button 
                 onClick={() => setStatusFilter('')}
-                className={`px-4 py-2 text-xs font-semibold rounded-xl border transition-all ${
+                className={`px-4 py-2 text-[10px] uppercase font-bold tracking-wider rounded-xl border transition-all ${
                   statusFilter === '' 
-                    ? 'bg-brand-600/20 text-brand-400 border-brand-500/30' 
-                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                    ? 'bg-brand-500/10 text-brand-400 border-brand-500/20' 
+                    : 'bg-slate-950/40 text-slate-400 border-slate-800 hover:text-white'
                 }`}
               >
                 All RFQs
               </button>
               <button 
                 onClick={() => setStatusFilter('open')}
-                className={`px-4 py-2 text-xs font-semibold rounded-xl border transition-all ${
+                className={`px-4 py-2 text-[10px] uppercase font-bold tracking-wider rounded-xl border transition-all ${
                   statusFilter === 'open' 
-                    ? 'bg-brand-600/20 text-brand-400 border-brand-500/30' 
-                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                    ? 'bg-brand-500/10 text-brand-400 border-brand-500/20' 
+                    : 'bg-slate-950/40 text-slate-400 border-slate-800 hover:text-white'
                 }`}
               >
                 Open Bids
               </button>
               <button 
                 onClick={() => setStatusFilter('closed')}
-                className={`px-4 py-2 text-xs font-semibold rounded-xl border transition-all ${
+                className={`px-4 py-2 text-[10px] uppercase font-bold tracking-wider rounded-xl border transition-all ${
                   statusFilter === 'closed' 
-                    ? 'bg-brand-600/20 text-brand-400 border-brand-500/30' 
-                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                    ? 'bg-brand-500/10 text-brand-400 border-brand-500/20' 
+                    : 'bg-slate-950/40 text-slate-400 border-slate-800 hover:text-white'
                 }`}
               >
                 Closed
@@ -281,7 +289,7 @@ export default function RFQs() {
             {isAdmin && (
               <button
                 onClick={() => setView('create')}
-                className="py-2.5 px-4 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white rounded-xl font-semibold text-xs flex items-center gap-1.5 hover-scale shadow-lg shadow-brand-500/20"
+                className="btn-premium"
               >
                 <Plus size={16} /> Create RFQ
               </button>
@@ -290,60 +298,67 @@ export default function RFQs() {
 
           {/* RFQs List */}
           {isLoading ? (
-            <div className="text-center py-12 text-slate-400">Loading RFQs...</div>
-          ) : rfqs?.results?.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 glass-card rounded-2xl p-8 border border-slate-800/30">
-              No RFQs found.
+            <div className="space-y-6">
+              <CardSkeleton />
+              <CardSkeleton />
+            </div>
+          ) : rfqList.length === 0 ? (
+            <div className="text-center py-16 text-slate-500 glass-card rounded-2xl p-8 border border-slate-800/30 flex flex-col items-center justify-center space-y-3">
+              <div className="h-12 w-12 rounded-xl bg-slate-900 flex items-center justify-center border border-slate-800 text-slate-400 mb-2">
+                <ClipboardList size={20} />
+              </div>
+              <p className="text-sm font-bold text-white">No RFQs Found</p>
+              <p className="text-xs text-slate-400 max-w-sm">There are no Requests for Quotation published under the selected filters.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6">
-              {rfqs?.results?.map((rfq) => (
+              {rfqList.map((rfq) => (
                 <div 
                   key={rfq.id} 
-                  className="glass-card rounded-2xl p-6 border border-slate-800/40 hover:border-slate-700/50 transition-all duration-200"
+                  className="glass-card rounded-2xl p-6 border border-slate-800/40 hover:border-slate-800/60 hover:shadow-xl hover:shadow-brand-500/5 transition-all duration-300"
                 >
                   <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
-                    <div>
+                    <div className="space-y-1">
                       <div className="flex items-center gap-3">
-                        <h3 className="font-display font-bold text-lg text-white">RFQ-{rfq.id}: {rfq.title}</h3>
-                        <span className={`inline-block text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${
+                        <h3 className="font-display font-extrabold text-base lg:text-lg text-white">RFQ-{rfq.id}: {rfq.title}</h3>
+                        <span className={`inline-block text-[8px] uppercase font-bold tracking-widest px-2 py-0.5 rounded border ${
                           rfq.status === 'open' 
                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                             : rfq.status === 'closed'
-                            ? 'bg-slate-800 text-slate-400 border-slate-700'
+                            ? 'bg-slate-800/40 text-slate-400 border-slate-850'
                             : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                         }`}>
-                          {rfq.status}
+                          {rfq.status.replace('_', ' ')}
                         </span>
                       </div>
-                      <p className="text-slate-400 text-xs mt-1.5 leading-relaxed">{rfq.description}</p>
+                      <p className="text-slate-400 text-xs leading-relaxed max-w-2xl">{rfq.description}</p>
                     </div>
 
-                    <div className="flex flex-row md:flex-col items-end gap-1.5 text-xs text-slate-400 shrink-0">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar size={14} className="text-slate-500" />
-                        <span>Deadline: <span className="font-semibold text-white">{new Date(rfq.deadline).toLocaleDateString()}</span></span>
+                    <div className="flex flex-row md:flex-col items-end gap-1.5 text-[10px] text-slate-400 shrink-0 font-semibold">
+                      <div className="flex items-center gap-1.5 bg-slate-950/40 border border-slate-900 px-2 py-1 rounded-lg">
+                        <Calendar size={12} className="text-slate-500" />
+                        <span>Deadline: <span className="text-white">{new Date(rfq.deadline).toLocaleDateString()}</span></span>
                       </div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <ClipboardList size={14} className="text-slate-500" />
-                        <span>Quotes: <span className="font-semibold text-brand-400">{rfq.quotations_count || 0} submitted</span></span>
+                      <div className="flex items-center gap-1.5 bg-slate-950/40 border border-slate-900 px-2 py-1 rounded-lg mt-1">
+                        <ClipboardList size={12} className="text-slate-500" />
+                        <span>Quotes: <span className="text-brand-400 font-extrabold">{rfq.quotations_count || 0} submitted</span></span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Line Items Expansion */}
-                  <div className="bg-slate-950/40 border border-slate-900 rounded-xl p-4 mt-4 space-y-3">
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Included Items ({rfq.items?.length})</h4>
+                  {/* Line Items Drawer */}
+                  <div className="bg-slate-950/40 border border-slate-900/60 rounded-xl p-4 mt-4 space-y-3">
+                    <h4 className="text-[9px] font-bold text-slate-450 uppercase tracking-widest">Included Line Items ({rfq.items?.length || 0})</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {rfq.items?.map((item) => (
-                        <div key={item.id} className="text-xs flex items-center justify-between p-2.5 rounded-lg bg-slate-900/30 border border-slate-900">
+                        <div key={item.id} className="text-xs flex items-center justify-between p-3 rounded-xl bg-slate-900/30 border border-slate-900/60">
                           <div>
-                            <p className="font-semibold text-white">{item.item_name}</p>
-                            <p className="text-[10px] text-slate-500 truncate max-w-[200px]">{item.description || 'No specs listed'}</p>
+                            <p className="font-bold text-slate-200">{item.item_name}</p>
+                            <p className="text-[9px] text-slate-500 mt-0.5 truncate max-w-[200px]">{item.description || 'No specifications listed'}</p>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="text-slate-400">Qty: {item.quantity}</p>
-                            {isAdmin && <p className="text-[10px] text-slate-500">Target: ${item.target_price}</p>}
+                            <p className="text-slate-300 font-semibold">Qty: {item.quantity}</p>
+                            {isAdmin && <p className="text-[9px] text-slate-500 font-medium">Target: ${item.target_price}</p>}
                           </div>
                         </div>
                       ))}
@@ -359,9 +374,9 @@ export default function RFQs() {
                             setSelectedRfq(rfq);
                             setView('compare');
                           }}
-                          className="py-2 px-4 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-xl font-semibold text-xs flex items-center gap-1.5 border border-brand-500/20 transition-all"
+                          className="py-1.5 px-3 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 border border-brand-500/15 transition-all"
                         >
-                          <Users size={14} /> Compare Bids ({rfq.quotations_count})
+                          <Users size={12} /> Compare Bids ({rfq.quotations_count})
                         </button>
                         <button
                           onClick={() => {
@@ -369,19 +384,19 @@ export default function RFQs() {
                               deleteRfqMutation.mutate(rfq.id);
                             }
                           }}
-                          className="p-2 text-slate-500 hover:text-red-400 bg-slate-900/50 border border-slate-800 rounded-xl transition-colors hover:bg-slate-800"
+                          className="p-2 text-slate-400 hover:text-red-400 bg-slate-950/50 border border-slate-800 rounded-xl hover:bg-slate-900/50 transition-colors"
                           title="Delete RFQ"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={12} />
                         </button>
                       </>
                     ) : (
                       rfq.status === 'open' && (
                         <button
                           onClick={() => handleOpenSubmitQuote(rfq)}
-                          className="py-2 px-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-semibold text-xs flex items-center gap-1.5 hover-scale shadow-lg shadow-brand-500/10"
+                          className="btn-premium"
                         >
-                          <Send size={14} /> Submit Quote
+                          <Send size={12} /> Submit Bid Quote
                         </button>
                       )
                     )}
@@ -392,6 +407,6 @@ export default function RFQs() {
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

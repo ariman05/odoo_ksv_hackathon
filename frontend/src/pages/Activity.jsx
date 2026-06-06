@@ -12,6 +12,8 @@ export default function ActivityLog() {
     }
   });
 
+  const logList = Array.isArray(logs) ? logs : (logs?.results || []);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 glass-card rounded-2xl border border-slate-800/40">
@@ -24,13 +26,13 @@ export default function ActivityLog() {
 
       {isLoading ? (
         <div className="text-center py-12 text-slate-400">Loading audit trail...</div>
-      ) : logs?.results?.length === 0 ? (
+      ) : logList.length === 0 ? (
         <div className="text-center py-12 text-slate-500 glass-card rounded-2xl p-8 border border-slate-800/30">
           No activities recorded.
         </div>
       ) : (
         <div className="glass-card rounded-2xl border border-slate-800/40 overflow-hidden divide-y divide-slate-800/40">
-          {logs?.results?.map((log) => (
+          {logList.map((log) => (
             <div key={log.id} className="p-4 flex gap-4 items-start hover:bg-slate-900/10 transition-colors">
               <div className="h-9 w-9 rounded-xl bg-brand-500/10 flex items-center justify-center text-brand-400 shrink-0 mt-0.5">
                 <Clock size={16} />
