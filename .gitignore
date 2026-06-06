@@ -33,3 +33,5 @@ Thumbs.db
 # Local portable tooling
 node-portable/
 install_node.py
+.vite/
+frontend/.vite/

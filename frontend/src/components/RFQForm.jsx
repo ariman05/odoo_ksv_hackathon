@@ -47,19 +47,19 @@ export default function RFQForm({ onSuccess, onCancel }) {
   };
 
   return (
-    <div className="glass-panel p-8 rounded-3xl border border-slate-800/60 shadow-2xl space-y-6">
+    <div className="glass-panel p-6 lg:p-8 rounded-3xl border border-slate-800/60 shadow-2xl space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 border-b border-slate-800/40 pb-4">
-        <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center text-brand-400">
+        <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center text-brand-400 border border-brand-500/15">
           <FileText size={20} />
         </div>
         <div>
-          <h3 className="font-display font-bold text-lg text-white">Create Request for Quotation (RFQ)</h3>
+          <h3 className="font-display font-extrabold text-lg text-white tracking-tight">Create Request for Quotation (RFQ)</h3>
           <p className="text-xs text-slate-400">Specify details and target prices for required items</p>
         </div>
       </div>
 
       {error && (
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">
           {error}
         </div>
       )}
@@ -68,32 +68,32 @@ export default function RFQForm({ onSuccess, onCancel }) {
         {/* RFQ General details */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2 space-y-1">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">RFQ Title *</label>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">RFQ Title *</label>
             <input 
               {...register('title')} 
               placeholder="e.g. Office Laptops & Monitors Upgrade" 
-              className="w-full px-4 py-2.5 bg-slate-900/60 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 text-sm"
+              className="input-premium"
             />
             {errors.title && <p className="text-xs text-red-400">{errors.title.message}</p>}
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Deadline Date *</label>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Deadline Date *</label>
             <input 
               {...register('deadline')} 
               type="date"
-              className="w-full px-4 py-2.5 bg-slate-900/60 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-brand-500 text-sm"
+              className="input-premium"
             />
             {errors.deadline && <p className="text-xs text-red-400">{errors.deadline.message}</p>}
           </div>
 
           <div className="md:col-span-3 space-y-1">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">RFQ Description *</label>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">RFQ Description *</label>
             <textarea 
               {...register('description')} 
               placeholder="Provide context, required specifications, and compliance terms..." 
               rows={3}
-              className="w-full px-4 py-2.5 bg-slate-900/60 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 text-sm resize-none"
+              className="w-full px-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all duration-200 text-sm resize-none"
             />
             {errors.description && <p className="text-xs text-red-400">{errors.description.message}</p>}
           </div>
@@ -102,59 +102,59 @@ export default function RFQForm({ onSuccess, onCancel }) {
         {/* Nested RFQ items wizard */}
         <div className="space-y-4">
           <div className="flex items-center justify-between border-t border-slate-800/40 pt-6">
-            <h4 className="text-sm font-semibold text-brand-400 uppercase tracking-wider">Line Items</h4>
+            <h4 className="text-xs font-bold text-brand-400 uppercase tracking-widest">Line Items</h4>
             <button
               type="button"
               onClick={() => append({ item_name: '', description: '', quantity: 1, target_price: 1.00 })}
-              className="py-1.5 px-3 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-lg font-semibold text-xs flex items-center gap-1.5 border border-brand-500/20 transition-all"
+              className="py-1.5 px-3 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center gap-1 border border-brand-500/15 transition-all"
             >
-              <Plus size={14} /> Add Line Item
+              <Plus size={12} /> Add Line Item
             </button>
           </div>
 
           {errors.items?.root && <p className="text-xs text-red-400">{errors.items.root.message}</p>}
 
-          <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+          <div className="space-y-4 max-h-[280px] overflow-y-auto pr-2">
             {fields.map((field, index) => (
-              <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 p-4 bg-slate-900/30 border border-slate-800/60 rounded-xl relative group">
+              <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 p-4 bg-slate-950/30 border border-slate-800/60 rounded-2xl relative group">
                 <div className="md:col-span-4 space-y-1">
-                  <label className="text-[10px] text-slate-400 uppercase font-semibold">Item Name *</label>
+                  <label className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Item Name *</label>
                   <input 
                     {...register(`items.${index}.item_name`)} 
                     placeholder="e.g. Dell XPS 15" 
-                    className="w-full px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-brand-500"
+                    className="w-full px-3 py-2 bg-slate-950/40 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
                   />
                   {errors.items?.[index]?.item_name && <p className="text-[10px] text-red-400">{errors.items[index].item_name.message}</p>}
                 </div>
 
                 <div className="md:col-span-4 space-y-1">
-                  <label className="text-[10px] text-slate-400 uppercase font-semibold">Description</label>
+                  <label className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Description</label>
                   <input 
                     {...register(`items.${index}.description`)} 
                     placeholder="Specs/Warranty" 
-                    className="w-full px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-brand-500"
+                    className="w-full px-3 py-2 bg-slate-950/40 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
                   />
                 </div>
 
                 <div className="md:col-span-2 space-y-1">
-                  <label className="text-[10px] text-slate-400 uppercase font-semibold">Qty *</label>
+                  <label className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Qty *</label>
                   <input 
                     {...register(`items.${index}.quantity`, { valueAsNumber: true })} 
                     type="number" 
                     min={1}
-                    className="w-full px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-brand-500"
+                    className="w-full px-3 py-2 bg-slate-950/40 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
                   />
                   {errors.items?.[index]?.quantity && <p className="text-[10px] text-red-400">{errors.items[index].quantity.message}</p>}
                 </div>
 
                 <div className="md:col-span-2 space-y-1 relative pr-8">
-                  <label className="text-[10px] text-slate-400 uppercase font-semibold">Target Price *</label>
+                  <label className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Target Price *</label>
                   <input 
                     {...register(`items.${index}.target_price`, { valueAsNumber: true })} 
                     type="number" 
                     step="0.01"
                     min="0.01"
-                    className="w-full px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-brand-500"
+                    className="w-full px-3 py-2 bg-slate-950/40 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
                   />
                   {errors.items?.[index]?.target_price && <p className="text-[10px] text-red-400">{errors.items[index].target_price.message}</p>}
                   
@@ -165,7 +165,7 @@ export default function RFQForm({ onSuccess, onCancel }) {
                       className="absolute right-0 bottom-2 text-slate-500 hover:text-red-400 p-1.5 transition-colors"
                       title="Remove Item"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={14} />
                     </button>
                   )}
                 </div>
@@ -179,16 +179,16 @@ export default function RFQForm({ onSuccess, onCancel }) {
           <button
             type="button"
             onClick={onCancel}
-            className="px-5 py-2.5 bg-slate-900 border border-slate-800 text-slate-300 rounded-xl font-semibold text-sm transition-colors hover:bg-slate-800"
+            className="btn-secondary-premium"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={loading}
-            className="px-5 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-1.5 hover-scale shadow-lg shadow-brand-500/20 disabled:opacity-50"
+            className="btn-premium disabled:opacity-50"
           >
-            {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} Publish RFQ
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Publish RFQ
           </button>
         </div>
       </form>

@@ -55,11 +55,12 @@ class VendorViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        qs = VendorProfile.objects.all().order_by('-joined_at')
         # Allow filtering by status
         status_filter = self.request.query_params.get('status', None)
         if status_filter:
-            return self.queryset.filter(status=status_filter)
-        return self.queryset
+            return qs.filter(status=status_filter)
+        return qs
 
     @decorators.action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def approve(self, request, pk=None):
@@ -95,11 +96,15 @@ class RFQViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        # Vendors only see Open and Closed RFQs
+        qs = RFQ.objects.all().order_by('-created_at')
+        
+        status_filter = self.request.query_params.get('status', None)
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+            
         if user.role == 'vendor':
-            return self.queryset.filter(status__in=['open', 'closed'])
-        # Admins/Managers see all
-        return self.queryset
+            return qs.filter(status__in=['open', 'closed'])
+        return qs
 
     def perform_create(self, serializer):
         rfq = serializer.save(created_by=self.request.user, status='open')
@@ -116,14 +121,13 @@ class QuotationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        # Vendors only see their own quotations
+        qs = Quotation.objects.all().order_by('-created_at')
         if user.role == 'vendor':
-            return self.queryset.filter(vendor=user)
-        # RFQ specific filtering
+            return qs.filter(vendor=user)
         rfq_id = self.request.query_params.get('rfq', None)
         if rfq_id:
-            return self.queryset.filter(rfq_id=rfq_id)
-        return self.queryset
+            return qs.filter(rfq_id=rfq_id)
+        return qs
 
     def create(self, request, *args, **kwargs):
         if request.user.role != 'vendor':
@@ -192,9 +196,10 @@ class ApprovalViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        qs = Approval.objects.all().order_by('-created_at')
         if user.role == 'vendor':
-            return self.queryset.filter(quotation__vendor=user)
-        return self.queryset
+            return qs.filter(quotation__vendor=user)
+        return qs
 
     @decorators.action(detail=True, methods=['post'])
     def action(self, request, pk=None):
@@ -270,9 +275,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        qs = PurchaseOrder.objects.all().order_by('-created_at')
         if user.role == 'vendor':
-            return self.queryset.filter(quotation__vendor=user)
-        return self.queryset
+            return qs.filter(quotation__vendor=user)
+        return qs
 
     @decorators.action(detail=True, methods=['post'])
     def acknowledge(self, request, pk=None):
@@ -301,9 +307,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        qs = Invoice.objects.all().order_by('-created_at')
         if user.role == 'vendor':
-            return self.queryset.filter(po__quotation__vendor=user)
-        return self.queryset
+            return qs.filter(po__quotation__vendor=user)
+        return qs
 
     def create(self, request, *args, **kwargs):
         if request.user.role != 'vendor':
@@ -365,13 +372,38 @@ class ReportsViewSet(viewsets.ViewSet):
             accepted_count = my_quotes.filter(status='accepted').count()
             total_earned = PurchaseOrder.objects.filter(quotation__vendor=request.user, status='completed').aggregate(sum=Sum('total_amount'))['sum'] or 0.00
             
+            try:
+                rating = float(request.user.vendor_profile.rating)
+            except Exception:
+                rating = 5.00
+            
+            # Vendor monthly revenue breakdown (last 6 months)
+            monthly_revenue_data = []
+            now = timezone.now()
+            for i in range(5, -1, -1):
+                month_date = now - timedelta(days=i*30)
+                month_name = month_date.strftime("%B")
+                revenue = PurchaseOrder.objects.filter(
+                    quotation__vendor=request.user,
+                    status='completed',
+                    created_at__year=month_date.year,
+                    created_at__month=month_date.month
+                ).aggregate(sum=Sum('total_amount'))['sum'] or 0.00
+                
+                monthly_revenue_data.append({
+                    "month": month_name,
+                    "revenue": float(revenue)
+                })
+
             return Response({
                 "role": "vendor",
                 "stats": {
                     "submitted_quotes": submitted_count,
                     "accepted_quotes": accepted_count,
                     "total_revenue": total_earned,
-                }
+                    "rating": rating,
+                },
+                "monthly_spend": monthly_revenue_data
             })
             
         # Admin / Manager Stats
@@ -380,26 +412,23 @@ class ReportsViewSet(viewsets.ViewSet):
         pending_approvals = Approval.objects.filter(status='pending').count()
         active_vendors = VendorProfile.objects.filter(status='approved').count()
 
+        # Calculate live stats
+        total_bids = Quotation.objects.count()
+        total_pos = PurchaseOrder.objects.count()
+        completed_pos = PurchaseOrder.objects.filter(status='completed').count()
+        fulfillment_rate = f"{int((completed_pos / total_pos) * 100)}%" if total_pos > 0 else "0%"
+
         # Spend by Category
         categories = VendorProfile.objects.filter(status='approved').values('category').annotate(
             total_spend=Sum('user__submitted_quotations__purchaseorder__total_amount')
         )
         category_data = []
         for cat in categories:
-            if cat['category']:
+            if cat['category'] and cat['total_spend']:
                 category_data.append({
                     "name": cat['category'],
-                    "value": float(cat['total_spend'] or 0.00)
+                    "value": float(cat['total_spend'])
                 })
-
-        if not category_data:
-            # Fallback mock categories for premium experience if no POs exist yet
-            category_data = [
-                {"name": "IT Hardware", "value": 12400.00},
-                {"name": "Office Furniture", "value": 8500.00},
-                {"name": "Stationery", "value": 1500.00},
-                {"name": "Logistics", "value": 4300.00},
-            ]
 
         # Monthly spend (last 6 months)
         monthly_spend_data = []
@@ -407,7 +436,6 @@ class ReportsViewSet(viewsets.ViewSet):
         for i in range(5, -1, -1):
             month_date = now - timedelta(days=i*30)
             month_name = month_date.strftime("%B")
-            # Calculate spend in this month
             spend = PurchaseOrder.objects.filter(
                 created_at__year=month_date.year,
                 created_at__month=month_date.month
@@ -415,7 +443,7 @@ class ReportsViewSet(viewsets.ViewSet):
             
             monthly_spend_data.append({
                 "month": month_name,
-                "spend": float(spend) if float(spend) > 0 else random.randint(3000, 15000) # Mock values if db is empty for premium look
+                "spend": float(spend)
             })
 
         # Top vendors by spend
@@ -425,20 +453,12 @@ class ReportsViewSet(viewsets.ViewSet):
         
         vendor_data = []
         for v in top_vendors:
-            vendor_data.append({
-                "vendor": v.user.company_name or v.user.username,
-                "spend": float(v.spend or 0.00),
-                "rfqs": v.user.submitted_quotations.count()
-            })
-            
-        if not any(v['spend'] > 0 for v in vendor_data):
-            # Fallback mock top vendors
-            vendor_data = [
-                {"vendor": "TechSupply Ltd", "spend": 12500.00, "rfqs": 4},
-                {"vendor": "Office Depot Co", "spend": 8200.00, "rfqs": 2},
-                {"vendor": "Global Logistics", "spend": 4500.00, "rfqs": 3},
-                {"vendor": "Apex Stationery", "spend": 1500.00, "rfqs": 1},
-            ]
+            if v.spend:
+                vendor_data.append({
+                    "vendor": v.user.company_name or v.user.username,
+                    "spend": float(v.spend),
+                    "rfqs": v.user.submitted_quotations.count()
+                })
 
         return Response({
             "role": "admin",
@@ -446,9 +466,12 @@ class ReportsViewSet(viewsets.ViewSet):
                 "total_spend": float(total_spend),
                 "open_rfqs": open_rfqs,
                 "pending_approvals": pending_approvals,
-                "active_vendors": active_vendors
+                "active_vendors": active_vendors,
+                "total_bids": total_bids,
+                "fulfillment_rate": fulfillment_rate
             },
             "spend_by_category": category_data,
             "monthly_spend": monthly_spend_data,
             "top_vendors": vendor_data
         })
+
