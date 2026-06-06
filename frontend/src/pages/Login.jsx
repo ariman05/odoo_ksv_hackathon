@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api.js';
 
 const loginSchema = z.object({
@@ -13,6 +14,7 @@ const loginSchema = z.object({
 
 export default function Login() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -33,6 +35,7 @@ export default function Login() {
       const userRes = await api.get('/api/auth/me/');
       localStorage.setItem('user', JSON.stringify(userRes.data));
 
+      queryClient.clear();
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.detail || 'Invalid username or password.');

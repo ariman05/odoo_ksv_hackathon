@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Users, FileText, CheckSquare, 
@@ -41,9 +41,11 @@ export default function Layout({ children }) {
     { name: 'Activity Log', path: '/activity', icon: Activity, roles: ['admin', 'manager'] },
   ];
 
+  const queryClient = useQueryClient();
   const filteredMenu = menuItems.filter(item => item.roles.includes(user.role || 'vendor'));
 
   const handleLogout = () => {
+    queryClient.clear();
     localStorage.removeItem('token');
     localStorage.removeItem('refresh');
     localStorage.removeItem('user');
