@@ -49,7 +49,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen w-screen flex items-center justify-center bg-dark-950 mesh-bg py-12 px-4 relative overflow-hidden font-sans">
+    <div className="h-screen w-screen overflow-y-auto bg-dark-950 mesh-bg py-12 px-4 relative font-sans flex items-start justify-center">
       {/* Background decoration */}
       <div className="absolute top-0 right-0 h-96 w-96 rounded-full bg-brand-600/5 blur-[120px]" />
       <div className="absolute bottom-0 left-0 h-96 w-96 rounded-full bg-indigo-600/5 blur-[120px]" />
