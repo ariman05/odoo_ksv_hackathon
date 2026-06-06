@@ -60,9 +60,11 @@ export default function Layout({ children }) {
         {/* Brand Header */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800/40">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
-              <span className="font-display font-bold text-white text-lg">V</span>
-            </div>
+            <img 
+              src="/vendorbridge_logo.png" 
+              alt="Logo" 
+              className="h-8 w-8 object-contain rounded-lg shadow-lg shadow-brand-500/10"
+            />
             {!collapsed && (
               <span className="font-display font-bold text-lg bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
                 VendorBridge
