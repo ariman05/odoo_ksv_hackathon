@@ -1,0 +1,1525 @@
+import { useState, useEffect, useCallback } from "react";
+
+// ─── Font ──────────────────────────────────────────────────────────────────────
+const FONT = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap";
+
+// ─── Colors ────────────────────────────────────────────────────────────────────
+const C = {
+  navy:"#0A1628", navyL:"#112240", navyM:"#1B3A5C",
+  teal:"#0DBFAD", tealD:"#099E8E", tealL:"#CCFAF5", tealXL:"#F0FDFB",
+  gold:"#F59E0B", goldL:"#FEF3C7", goldD:"#B45309",
+  red:"#EF4444", redL:"#FEE2E2", redD:"#991B1B",
+  green:"#10B981", greenL:"#D1FAE5", greenD:"#065F46",
+  purple:"#7C3AED", purpleL:"#EDE9FE", purpleD:"#5B21B6",
+  blue:"#3B82F6", blueL:"#DBEAFE", blueD:"#1D4ED8",
+  orange:"#F97316", orangeL:"#FFEDD5",
+  bg:"#F0F4F8", bgD:"#E2E8F0",
+  white:"#FFFFFF", border:"#E2E8F0", borderD:"#CBD5E1",
+  text:"#0F172A", textM:"#475569", textL:"#94A3B8", textXL:"#CBD5E1",
+};
+
+const F = "'Inter', sans-serif";
+
+// ─── Role Permissions ──────────────────────────────────────────────────────────
+const PERMISSIONS = {
+  admin:    { canManageUsers:true, canManageVendors:true, canCreateRFQ:true, canSubmitQuote:true, canApprove:true, canGeneratePO:true, canGenerateInvoice:true, canViewReports:true, canViewAll:true },
+  manager:  { canManageUsers:false, canManageVendors:false, canCreateRFQ:false, canSubmitQuote:false, canApprove:true, canGeneratePO:false, canGenerateInvoice:false, canViewReports:true, canViewAll:true },
+  officer:  { canManageUsers:false, canManageVendors:true, canCreateRFQ:true, canSubmitQuote:false, canApprove:false, canGeneratePO:true, canGenerateInvoice:true, canViewReports:true, canViewAll:true },
+  vendor:   { canManageUsers:false, canManageVendors:false, canCreateRFQ:false, canSubmitQuote:true, canApprove:false, canGeneratePO:false, canGenerateInvoice:false, canViewReports:false, canViewAll:false },
+};
+
+const ROLE_INFO = {
+  admin:   { label:"Administrator", color:C.purple, bg:C.purpleL, icon:"👑", desc:"Full system access & user management" },
+  manager: { label:"Manager / Approver", color:C.blue, bg:C.blueL, icon:"🏛", desc:"Approve/reject procurement requests" },
+  officer: { label:"Procurement Officer", color:C.teal, bg:C.tealL, icon:"📋", desc:"Create RFQs, POs and invoices" },
+  vendor:  { label:"Vendor", color:C.gold, bg:C.goldL, icon:"🏢", desc:"Submit quotations and track orders" },
+};
+
+// ─── Design System ─────────────────────────────────────────────────────────────
+const S = {
+  app: { display:"flex", height:"100vh", fontFamily:F, background:C.bg, overflow:"hidden", color:C.text },
+  sidebar: { width:256, background:C.navy, display:"flex", flexDirection:"column", flexShrink:0 },
+  main: { flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 },
+  topbar: { background:C.white, borderBottom:`1px solid ${C.border}`, padding:"0 28px", height:64, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0, boxShadow:"0 1px 4px rgba(0,0,0,0.04)" },
+  content: { flex:1, overflowY:"auto", padding:"28px 32px" },
+  card: { background:C.white, borderRadius:16, border:`1px solid ${C.border}`, padding:"22px 26px", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" },
+  btn: (v="primary",sm=false) => ({
+    display:"inline-flex", alignItems:"center", gap:6,
+    padding:sm?"6px 12px":"10px 20px",
+    borderRadius:9, cursor:"pointer", fontWeight:600, fontFamily:F,
+    fontSize:sm?12:13.5, border:"none", transition:"all 0.15s",
+    background: v==="primary"?C.teal:v==="danger"?C.red:v==="navy"?C.navy:v==="purple"?C.purple:v==="success"?C.green:v==="gold"?C.gold:v==="blue"?C.blue:"transparent",
+    color:["primary","danger","navy","purple","success","gold","blue"].includes(v)?C.white:C.textM,
+    outline:["ghost","outline"].includes(v)?`1px solid ${C.border}`:"none",
+  }),
+  badge:(s)=>{
+    const m={pending:[C.goldL,C.goldD],active:[C.tealL,C.tealD],approved:[C.greenL,C.greenD],rejected:[C.redL,C.redD],draft:["#F8FAFC",C.textM],sent:[C.blueL,C.blueD],paid:[C.greenL,C.greenD],closed:["#F1F5F9",C.textL],issued:[C.purpleL,C.purpleD],inactive:["#F1F5F9",C.textL],suspended:[C.redL,C.redD],active_user:[C.greenL,C.greenD]};
+    const[bg,tc]=m[s]||["#F1F5F9",C.textM];
+    return{display:"inline-flex",alignItems:"center",padding:"3px 10px",borderRadius:20,fontSize:11.5,fontWeight:700,background:bg,color:tc};
+  },
+  input:{ width:"100%",padding:"10px 13px",borderRadius:9,border:`1px solid ${C.border}`,fontSize:13.5,color:C.text,background:C.white,boxSizing:"border-box",outline:"none",fontFamily:F,transition:"border 0.15s" },
+  label:{ fontSize:12.5,fontWeight:600,color:C.textM,marginBottom:5,display:"block" },
+  th:{ padding:"11px 14px",textAlign:"left",fontSize:11,fontWeight:700,color:C.textL,background:"#F8FAFC",borderBottom:`1px solid ${C.border}`,textTransform:"uppercase",letterSpacing:"0.6px" },
+  td:{ padding:"13px 14px",borderBottom:`1px solid ${C.border}`,color:C.text,verticalAlign:"middle",fontSize:13.5 },
+  modal:{ position:"fixed",inset:0,background:"rgba(10,22,40,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,backdropFilter:"blur(4px)" },
+  mbox:(w=600)=>({ background:C.white,borderRadius:18,width:w,maxHeight:"92vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.25)" }),
+  mhead:{ padding:"22px 28px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center" },
+  mfoot:{ padding:"18px 28px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:10 },
+};
+
+// ─── Utilities ─────────────────────────────────────────────────────────────────
+const fmt = n => new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:0}).format(n||0);
+const today = () => new Date().toISOString().slice(0,10);
+const uid = () => Math.random().toString(36).slice(2,8).toUpperCase();
+const Stars = ({n=4,edit=false,onChange})=>(
+  <span>{[1,2,3,4,5].map(i=>(
+    <span key={i} style={{color:i<=Math.floor(n)?C.gold:C.border,fontSize:14,cursor:edit?"pointer":"default"}} onClick={()=>edit&&onChange&&onChange(i)}>★</span>
+  ))}<span style={{color:C.textL,fontSize:12,marginLeft:4}}>{n}</span></span>
+);
+
+function downloadCSV(name,headers,rows){
+  const e=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+  const csv=[headers.map(e).join(","),...rows.map(r=>r.map(e).join(","))].join("\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download=name;a.click();
+}
+
+// ─── Initial Users ──────────────────────────────────────────────────────────────
+const INIT_USERS = [
+  {id:"U001",name:"Aarav Admin",email:"admin@vendorbridge.in",password:"admin123",role:"admin",status:"active",createdAt:"2025-06-01",department:"IT",phone:"+91 98765 00001",avatar:"AA",lastLogin:"Today, 9:14 AM"},
+  {id:"U002",name:"Priya Sharma",email:"officer@vendorbridge.in",password:"officer123",role:"officer",status:"active",createdAt:"2025-06-05",department:"Procurement",phone:"+91 98765 00002",avatar:"PS",lastLogin:"Today, 10:02 AM"},
+  {id:"U003",name:"Ankit Joshi",email:"manager@vendorbridge.in",password:"manager123",role:"manager",status:"active",createdAt:"2025-06-08",department:"Finance",phone:"+91 98765 00003",avatar:"AJ",lastLogin:"Yesterday"},
+  {id:"U004",name:"Vendor Rep",email:"vendor@vendorbridge.in",password:"vendor123",role:"vendor",status:"active",createdAt:"2025-06-10",department:"External",phone:"+91 98765 00004",avatar:"VR",lastLogin:"2 days ago"},
+  {id:"U005",name:"Rahul Mehta",email:"rahul@vendorbridge.in",password:"rahul123",role:"officer",status:"active",createdAt:"2025-06-12",department:"Procurement",phone:"+91 98765 00005",avatar:"RM",lastLogin:"Today, 8:45 AM"},
+];
+
+// ─── Initial Data ──────────────────────────────────────────────────────────────
+const INIT_DATA = {
+  vendors:[
+    {id:"V001",name:"TechSupply Co.",category:"IT Equipment",gst:"27AABCT1234A1Z5",email:"sales@techsupply.com",phone:"+91 98765 43210",status:"active",rating:4.5,city:"Mumbai",contact:"Rohan Mehta",website:"www.techsupply.com",pan:"AABCT1234A"},
+    {id:"V002",name:"OfficeWorld Ltd.",category:"Office Supplies",gst:"29AABCO5678B1Z3",email:"orders@officeworld.in",phone:"+91 87654 32109",status:"active",rating:4.1,city:"Bangalore",contact:"Sneha Iyer",website:"www.officeworld.in",pan:"AABCO5678B"},
+    {id:"V003",name:"NetSolutions Pvt.",category:"Networking",gst:"06AABCN9012C1Z1",email:"hello@netsol.in",phone:"+91 76543 21098",status:"inactive",rating:3.8,city:"Gurugram",contact:"Amit Chauhan",website:"www.netsol.in",pan:"AABCN9012C"},
+    {id:"V004",name:"PrintMaster Inc.",category:"Printing",gst:"07AABCP3456D1Z9",email:"info@printmaster.co",phone:"+91 65432 10987",status:"active",rating:4.7,city:"Delhi",contact:"Kavita Singh",website:"www.printmaster.co",pan:"AABCP3456D"},
+    {id:"V005",name:"CloudGear Systems",category:"Cloud Services",gst:"19AABCC7890E1Z7",email:"sales@cloudgear.in",phone:"+91 54321 09876",status:"active",rating:4.3,city:"Pune",contact:"Dev Sharma",website:"www.cloudgear.in",pan:"AABCC7890E"},
+  ],
+  rfqs:[
+    {id:"RFQ-2025-001",title:"Laptop Procurement Q3",items:[{name:"Laptop 16GB RAM",qty:20,unit:"pcs",budget:60000}],deadline:"2025-08-15",status:"active",vendors:["V001","V003"],createdAt:"2025-07-10",createdBy:"U002",notes:"High performance required"},
+    {id:"RFQ-2025-002",title:"Office Stationery Bundle",items:[{name:"A4 Paper Reams",qty:100,unit:"reams",budget:500},{name:"Pens (Box)",qty:50,unit:"box",budget:300}],deadline:"2025-07-30",status:"draft",vendors:["V002"],createdAt:"2025-07-05",createdBy:"U002",notes:""},
+    {id:"RFQ-2025-003",title:"Network Switch Upgrade",items:[{name:"24-Port Switch",qty:5,unit:"pcs",budget:20000}],deadline:"2025-08-01",status:"closed",vendors:["V003"],createdAt:"2025-07-01",createdBy:"U005",notes:"Cisco preferred"},
+    {id:"RFQ-2025-004",title:"Cloud Server License Renewal",items:[{name:"Enterprise License",qty:10,unit:"seats",budget:35000}],deadline:"2025-08-20",status:"active",vendors:["V005"],createdAt:"2025-07-12",createdBy:"U002",notes:"Annual renewal"},
+  ],
+  quotations:[
+    {id:"Q001",rfqId:"RFQ-2025-001",vendorId:"V001",price:1250000,delivery:14,notes:"Includes 3-yr warranty & 24/7 support",status:"submitted",submittedAt:"2025-07-12"},
+    {id:"Q002",rfqId:"RFQ-2025-001",vendorId:"V003",price:1180000,delivery:21,notes:"Best price guarantee, bulk discount available",status:"submitted",submittedAt:"2025-07-13"},
+    {id:"Q003",rfqId:"RFQ-2025-003",vendorId:"V003",price:87500,delivery:7,notes:"In stock, immediate delivery",status:"approved",submittedAt:"2025-07-04"},
+    {id:"Q004",rfqId:"RFQ-2025-004",vendorId:"V005",price:320000,delivery:3,notes:"Instant digital delivery, 24/7 SLA",status:"submitted",submittedAt:"2025-07-13"},
+  ],
+  orders:[
+    {id:"PO-2025-001",rfqId:"RFQ-2025-003",quotationId:"Q003",vendorId:"V003",amount:87500,tax:15750,total:103250,status:"issued",createdAt:"2025-07-06",createdBy:"U002",items:[{name:"24-Port Switch",qty:5,rate:17500,amount:87500}]},
+  ],
+  invoices:[
+    {id:"INV-2025-001",poId:"PO-2025-001",vendorId:"V003",amount:87500,tax:15750,total:103250,status:"sent",createdAt:"2025-07-07",dueDate:"2025-08-06",createdBy:"U002"},
+  ],
+  approvals:[
+    {id:"APR-001",rfqId:"RFQ-2025-003",quotationId:"Q003",requestedBy:"U002",approvedBy:"U003",status:"approved",remarks:"Best value for money",date:"2025-07-05"},
+    {id:"APR-002",rfqId:"RFQ-2025-001",quotationId:"Q001",requestedBy:"U002",approvedBy:null,status:"pending",remarks:"",date:"2025-07-14"},
+    {id:"APR-003",rfqId:"RFQ-2025-004",quotationId:"Q004",requestedBy:"U005",approvedBy:null,status:"pending",remarks:"",date:"2025-07-15"},
+  ],
+  logs:[
+    {id:1,action:"Invoice INV-2025-001 sent to NetSolutions Pvt.",user:"U002",time:"2 hours ago",type:"invoice"},
+    {id:2,action:"PO-2025-001 generated and issued",user:"U002",time:"1 day ago",type:"po"},
+    {id:3,action:"Quotation Q003 approved",user:"U003",time:"2 days ago",type:"approval"},
+    {id:4,action:"RFQ-2025-001 sent to 2 vendors",user:"U002",time:"3 days ago",type:"rfq"},
+    {id:5,action:"CloudGear Systems registered as vendor",user:"U001",time:"4 days ago",type:"vendor"},
+  ],
+};
+
+// ─── Toast Notification ────────────────────────────────────────────────────────
+function Toast({toasts}){
+  return(
+    <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,display:"flex",flexDirection:"column",gap:10}}>
+      {toasts.map(t=>(
+        <div key={t.id} style={{background:t.type==="error"?C.redD:t.type==="warn"?C.goldD:C.greenD,color:C.white,padding:"12px 18px",borderRadius:12,fontSize:13.5,fontWeight:600,maxWidth:360,boxShadow:"0 8px 24px rgba(0,0,0,0.2)",display:"flex",alignItems:"center",gap:10}}>
+          <span>{t.type==="error"?"❌":t.type==="warn"?"⚠️":"✅"}</span>{t.msg}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Logo ──────────────────────────────────────────────────────────────────────
+function Logo({size=34,showText=true,dark=false}){
+  return(
+    <div style={{display:"flex",alignItems:"center",gap:10}}>
+      <svg width={size} height={size} viewBox="0 0 44 44" fill="none">
+        <rect width="44" height="44" rx="12" fill={C.teal}/>
+        <path d="M10 14 L18 32 L22 22 L26 32 L34 14" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx="22" cy="22" r="3" fill="white"/>
+        <path d="M15 19 Q22 13 29 19" stroke="white" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.7"/>
+      </svg>
+      {showText&&(
+        <div>
+          <div style={{color:dark?C.text:C.white,fontWeight:900,fontSize:18,letterSpacing:"-0.5px",lineHeight:1}}>VendorBridge</div>
+          <div style={{color:C.teal,fontSize:9,fontWeight:700,letterSpacing:"2px",textTransform:"uppercase",marginTop:3}}>Procurement ERP</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Auth / Login Screen ───────────────────────────────────────────────────────
+function AuthScreen({users,onLogin,onRegister}){
+  const[mode,setMode]=useState("login"); // login | signup | forgot
+  const[form,setForm]=useState({email:"",password:"",name:"",role:"officer",phone:"",department:""});
+  const[error,setError]=useState("");
+  const[loading,setLoading]=useState(false);
+  const[showPass,setShowPass]=useState(false);
+  const[step,setStep]=useState(1);
+
+  const DEPARTMENTS=["Procurement","Finance","IT","HR","Operations","Legal","Admin"];
+
+  const login=()=>{
+    setError("");
+    if(!form.email||!form.password){setError("Please fill all fields.");return;}
+    setLoading(true);
+    setTimeout(()=>{
+      const u=users.find(u=>u.email===form.email&&u.password===form.password);
+      if(!u){setError("Invalid email or password.");setLoading(false);return;}
+      if(u.status!=="active"){setError("Your account is suspended. Contact admin.");setLoading(false);return;}
+      onLogin({...u,lastLogin:"Just now"});
+    },700);
+  };
+
+  const register=()=>{
+    if(step===1){
+      if(!form.name||!form.email||!form.password){setError("Please fill all required fields.");return;}
+      if(users.find(u=>u.email===form.email)){setError("Email already registered.");return;}
+      if(form.password.length<6){setError("Password must be at least 6 characters.");return;}
+      setError("");setStep(2);return;
+    }
+    if(!form.role||!form.department){setError("Please select role and department.");return;}
+    setLoading(true);
+    setTimeout(()=>{
+      onRegister({...form,id:"U"+uid(),status:"active",createdAt:today(),avatar:form.name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase(),lastLogin:"Just now"});
+      setLoading(false);
+    },600);
+  };
+
+  const inputStyle=(focused=false)=>({...S.input,border:`1.5px solid ${focused?C.teal:C.border}`});
+
+  return(
+    <div style={{display:"flex",height:"100vh",fontFamily:F}}>
+      {/* Left Panel */}
+      <div style={{flex:1,background:C.navy,display:"flex",flexDirection:"column",justifyContent:"center",padding:"48px 60px",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-80,right:-80,width:400,height:400,borderRadius:"50%",background:C.teal,opacity:0.05}}/>
+        <div style={{position:"absolute",bottom:-100,left:-60,width:350,height:350,borderRadius:"50%",background:C.purple,opacity:0.06}}/>
+        <div style={{position:"relative"}}>
+          <div style={{marginBottom:44}}><Logo size={44} showText={true}/></div>
+          <div style={{fontSize:30,fontWeight:900,color:C.white,lineHeight:1.2,marginBottom:12}}>Smarter Procurement,<br/>Stronger Partnerships.</div>
+          <div style={{color:"#64748B",fontSize:14.5,lineHeight:1.8,marginBottom:36}}>The all-in-one ERP platform for modern procurement teams.</div>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {[["📋","RFQ & Quotation Management","Send RFQs to multiple vendors and compare bids instantly"],["✅","Structured Approval Workflows","Multi-level approvals with full audit trail"],["📦","PO & Invoice Generation","Auto-generate GST-compliant purchase orders and invoices"],["📊","Reports & Analytics","Export detailed reports in CSV/JSON format"]].map(([icon,title,desc])=>(
+              <div key={title} style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+                <div style={{width:36,height:36,borderRadius:10,background:`${C.teal}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{icon}</div>
+                <div><div style={{color:C.white,fontWeight:600,fontSize:13.5}}>{title}</div><div style={{color:"#64748B",fontSize:12.5,marginTop:2}}>{desc}</div></div>
+              </div>
+            ))}
+          </div>
+          <div style={{marginTop:40,padding:"16px 20px",background:`${C.white}08`,borderRadius:12,border:`1px solid ${C.navyM}`}}>
+            <div style={{fontSize:11,color:C.textL,fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:"1px"}}>Quick Access Credentials</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+              {[["👑 Admin","admin@vendorbridge.in","admin123"],["📋 Officer","officer@vendorbridge.in","officer123"],["🏛 Manager","manager@vendorbridge.in","manager123"],["🏢 Vendor","vendor@vendorbridge.in","vendor123"]].map(([role,email,pass])=>(
+                <div key={role} style={{fontSize:11.5,color:"#94A3B8",cursor:"pointer",padding:"6px 8px",borderRadius:7,background:`${C.white}05`}}
+                  onClick={()=>{setForm(f=>({...f,email,password:pass}));setMode("login");}}>
+                  <div style={{fontWeight:700,color:C.teal}}>{role}</div>
+                  <div>{email}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Panel */}
+      <div style={{width:480,background:C.white,display:"flex",alignItems:"center",justifyContent:"center",padding:"48px 52px",overflowY:"auto"}}>
+        <div style={{width:"100%"}}>
+          {mode==="login"&&(
+            <>
+              <div style={{fontSize:28,fontWeight:900,color:C.text,marginBottom:6}}>Welcome back 👋</div>
+              <div style={{color:C.textM,fontSize:13.5,marginBottom:32}}>Sign in to your VendorBridge workspace</div>
+              {error&&<div style={{background:C.redL,border:`1px solid #FCA5A5`,borderRadius:9,padding:"10px 14px",marginBottom:16,fontSize:13,color:C.redD,fontWeight:500}}>⚠️ {error}</div>}
+              <div style={{marginBottom:16}}>
+                <label style={S.label}>Email Address</label>
+                <input style={S.input} value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="you@company.com" type="email"/>
+              </div>
+              <div style={{marginBottom:8}}>
+                <label style={S.label}>Password</label>
+                <div style={{position:"relative"}}>
+                  <input style={S.input} value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))} placeholder="••••••••" type={showPass?"text":"password"} onKeyDown={e=>e.key==="Enter"&&login()}/>
+                  <span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:16,color:C.textL}} onClick={()=>setShowPass(p=>!p)}>{showPass?"🙈":"👁"}</span>
+                </div>
+              </div>
+              <div style={{textAlign:"right",marginBottom:24}}><span style={{color:C.teal,fontSize:12.5,cursor:"pointer",fontWeight:600}} onClick={()=>{setMode("forgot");setError("");}}>Forgot password?</span></div>
+              <button style={{...S.btn("primary"),width:"100%",justifyContent:"center",padding:"13px",fontSize:15,borderRadius:10,opacity:loading?0.7:1}} onClick={login} disabled={loading}>
+                {loading?"Signing in...":"Sign In →"}
+              </button>
+              <div style={{textAlign:"center",marginTop:20,fontSize:13.5,color:C.textM}}>
+                Don't have an account? <span style={{color:C.teal,fontWeight:700,cursor:"pointer"}} onClick={()=>{setMode("signup");setError("");setStep(1);}}>Create account</span>
+              </div>
+            </>
+          )}
+
+          {mode==="signup"&&(
+            <>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
+                <button style={{...S.btn("ghost",true),padding:"6px 10px"}} onClick={()=>{step===2?setStep(1):setMode("login");setError("");}}>← Back</button>
+                <div>
+                  <div style={{fontSize:22,fontWeight:900,color:C.text}}>Create Account</div>
+                  <div style={{fontSize:12.5,color:C.textL}}>Step {step} of 2</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:0,marginBottom:24,background:C.bg,borderRadius:10,padding:4}}>
+                {[1,2].map(s=><div key={s} style={{flex:1,textAlign:"center",padding:"8px",borderRadius:8,background:step===s?C.white:"transparent",fontWeight:step===s?700:500,fontSize:13,color:step===s?C.text:C.textL,boxShadow:step===s?"0 1px 4px rgba(0,0,0,0.1)":"none",transition:"all 0.2s"}}>{s===1?"Personal Info":"Role & Access"}</div>)}
+              </div>
+              {error&&<div style={{background:C.redL,border:`1px solid #FCA5A5`,borderRadius:9,padding:"10px 14px",marginBottom:16,fontSize:13,color:C.redD}}>⚠️ {error}</div>}
+              {step===1&&(
+                <>
+                  <div style={{marginBottom:14}}><label style={S.label}>Full Name *</label><input style={S.input} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Priya Sharma"/></div>
+                  <div style={{marginBottom:14}}><label style={S.label}>Email Address *</label><input style={S.input} type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="you@company.com"/></div>
+                  <div style={{marginBottom:14}}>
+                    <label style={S.label}>Password * <span style={{color:C.textL,fontWeight:400}}>(min. 6 characters)</span></label>
+                    <div style={{position:"relative"}}>
+                      <input style={S.input} type={showPass?"text":"password"} value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))} placeholder="••••••••"/>
+                      <span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:C.textL}} onClick={()=>setShowPass(p=>!p)}>{showPass?"🙈":"👁"}</span>
+                    </div>
+                    {form.password&&(
+                      <div style={{display:"flex",gap:4,marginTop:6}}>
+                        {[1,2,3,4].map(i=><div key={i} style={{flex:1,height:4,borderRadius:4,background:form.password.length>=(i*2)?i<=1?C.red:i<=2?C.gold:i<=3?C.teal:C.green:C.border,transition:"background 0.3s"}}/>)}
+                        <span style={{fontSize:11,color:C.textL,marginLeft:6}}>{form.password.length<4?"Weak":form.password.length<6?"Fair":form.password.length<8?"Good":"Strong"}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{marginBottom:24}}><label style={S.label}>Phone</label><input style={S.input} value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="+91 98765 43210"/></div>
+                  <button style={{...S.btn("primary"),width:"100%",justifyContent:"center",padding:"13px",fontSize:15,borderRadius:10}} onClick={register}>Continue →</button>
+                </>
+              )}
+              {step===2&&(
+                <>
+                  <div style={{marginBottom:16}}>
+                    <label style={S.label}>Select Your Role *</label>
+                    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                      {Object.entries(ROLE_INFO).map(([k,v])=>(
+                        <label key={k} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:11,border:`2px solid ${form.role===k?v.color:C.border}`,background:form.role===k?v.bg:C.white,cursor:"pointer",transition:"all 0.15s"}}>
+                          <input type="radio" name="role" checked={form.role===k} onChange={()=>setForm(f=>({...f,role:k}))} style={{accentColor:v.color}}/>
+                          <span style={{fontSize:20}}>{v.icon}</span>
+                          <div>
+                            <div style={{fontWeight:700,fontSize:13.5,color:form.role===k?v.color:C.text}}>{v.label}</div>
+                            <div style={{fontSize:12,color:C.textL,marginTop:2}}>{v.desc}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{marginBottom:24}}>
+                    <label style={S.label}>Department *</label>
+                    <select style={S.input} value={form.department} onChange={e=>setForm(f=>({...f,department:e.target.value}))}>
+                      <option value="">Select department...</option>
+                      {DEPARTMENTS.map(d=><option key={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div style={{background:C.bg,borderRadius:10,padding:"14px 16px",marginBottom:24,fontSize:12.5,color:C.textM}}>
+                    <div style={{fontWeight:700,marginBottom:8,color:C.text}}>📋 What you can do as {ROLE_INFO[form.role]?.label}:</div>
+                    {Object.entries(PERMISSIONS[form.role]||{}).filter(([,v])=>v).map(([k])=>(
+                      <div key={k} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                        <span style={{color:C.green,fontSize:13}}>✓</span>
+                        <span>{k.replace(/([A-Z])/g," $1").replace("can","").trim()}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button style={{...S.btn("primary"),width:"100%",justifyContent:"center",padding:"13px",fontSize:15,borderRadius:10,opacity:loading?0.7:1}} onClick={register} disabled={loading}>
+                    {loading?"Creating account...":"Create Account ✓"}
+                  </button>
+                </>
+              )}
+              <div style={{textAlign:"center",marginTop:16,fontSize:13,color:C.textM}}>
+                Already have an account? <span style={{color:C.teal,fontWeight:700,cursor:"pointer"}} onClick={()=>{setMode("login");setError("");}}>Sign in</span>
+              </div>
+            </>
+          )}
+
+          {mode==="forgot"&&(
+            <>
+              <button style={{...S.btn("ghost",true),marginBottom:20}} onClick={()=>{setMode("login");setError("");}}>← Back to Login</button>
+              <div style={{fontSize:24,fontWeight:900,color:C.text,marginBottom:6}}>Reset Password 🔑</div>
+              <div style={{color:C.textM,fontSize:13.5,marginBottom:28}}>Enter your email and we'll show your account details.</div>
+              {error&&<div style={{background:C.redL,borderRadius:9,padding:"10px 14px",marginBottom:16,fontSize:13,color:C.redD}}>⚠️ {error}</div>}
+              <div style={{marginBottom:20}}><label style={S.label}>Email Address</label><input style={S.input} type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="your@email.com"/></div>
+              <button style={{...S.btn("primary"),width:"100%",justifyContent:"center",padding:"13px",borderRadius:10}} onClick={()=>{
+                const u=users.find(x=>x.email===form.email);
+                if(!u){setError("No account found with this email.");return;}
+                alert(`Account found!\nName: ${u.name}\nRole: ${ROLE_INFO[u.role]?.label}\nPassword hint: first 3 chars = "${u.password.slice(0,3)}..."\n\nIn production, a reset link would be emailed.`);
+                setMode("login");
+              }}>Find Account</button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── User Management (Admin only) ──────────────────────────────────────────────
+function UserMgmt({users,setUsers,currentUser,addToast,setData}){
+  const[modal,setModal]=useState(false);
+  const[editModal,setEditModal]=useState(null);
+  const[form,setForm]=useState({name:"",email:"",password:"",role:"officer",phone:"",department:"",status:"active"});
+  const[search,setSearch]=useState("");
+  const[roleFilter,setRoleFilter]=useState("all");
+  const DEPTS=["Procurement","Finance","IT","HR","Operations","Legal","Admin","External"];
+
+  const filtered=users.filter(u=>(roleFilter==="all"||u.role===roleFilter)&&(u.name+u.email+u.department).toLowerCase().includes(search.toLowerCase()));
+
+  const addUser=()=>{
+    if(!form.name||!form.email||!form.password){addToast("Fill all required fields","error");return;}
+    if(users.find(u=>u.email===form.email)){addToast("Email already exists","error");return;}
+    const nu={...form,id:"U"+uid(),avatar:form.name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase(),createdAt:today(),lastLogin:"Never"};
+    setUsers(u=>[...u,nu]);
+    setData(d=>({...d,logs:[{id:d.logs.length+1,action:`User ${form.name} (${ROLE_INFO[form.role]?.label}) created`,user:currentUser.id,time:"just now",type:"vendor"},...d.logs]}));
+    addToast(`User ${form.name} created successfully`);
+    setModal(false);setForm({name:"",email:"",password:"",role:"officer",phone:"",department:"",status:"active"});
+  };
+
+  const toggleStatus=(uid2)=>{
+    if(uid2===currentUser.id){addToast("Cannot modify your own account","error");return;}
+    setUsers(u=>u.map(x=>x.id===uid2?{...x,status:x.status==="active"?"suspended":"active"}:x));
+    addToast("User status updated");
+  };
+
+  const deleteUser=(uid2)=>{
+    if(uid2===currentUser.id){addToast("Cannot delete your own account","error");return;}
+    if(!confirm("Delete this user? This cannot be undone."))return;
+    setUsers(u=>u.filter(x=>x.id!==uid2));
+    addToast("User deleted");
+  };
+
+  const saveEdit=()=>{
+    setUsers(u=>u.map(x=>x.id===editModal.id?{...x,...editModal}:x));
+    addToast("User updated successfully");
+    setEditModal(null);
+  };
+
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
+        <div style={{display:"flex",gap:10}}>
+          <input style={{...S.input,width:260}} placeholder="🔍 Search users..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          <select style={{...S.input,width:160}} value={roleFilter} onChange={e=>setRoleFilter(e.target.value)}>
+            <option value="all">All Roles</option>
+            {Object.entries(ROLE_INFO).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
+        <button style={S.btn("primary")} onClick={()=>setModal(true)}>+ Add User</button>
+      </div>
+
+      {/* Role Summary */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:22}}>
+        {Object.entries(ROLE_INFO).map(([k,v])=>{
+          const count=users.filter(u=>u.role===k).length;
+          return(
+            <div key={k} style={{...S.card,borderTop:`4px solid ${v.color}`,cursor:"pointer"}} onClick={()=>setRoleFilter(k)}>
+              <div style={{fontSize:22,marginBottom:8}}>{v.icon}</div>
+              <div style={{fontSize:22,fontWeight:900,color:C.text}}>{count}</div>
+              <div style={{fontSize:12.5,fontWeight:600,color:v.color,marginTop:4}}>{v.label}s</div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={S.card}>
+        <table style={{...S.table}}>
+          <thead><tr>{["User","Role","Department","Phone","Status","Last Login","Actions"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <tbody>{filtered.map(u=>{
+            const ri=ROLE_INFO[u.role];
+            return(
+              <tr key={u.id} style={{background:u.id===currentUser.id?"#FAFFFE":"white"}}>
+                <td style={S.td}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:36,height:36,borderRadius:10,background:ri?.bg||C.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:ri?.color||C.textM}}>{u.avatar}</div>
+                    <div><div style={{fontWeight:700,fontSize:13.5}}>{u.name}{u.id===currentUser.id&&<span style={{fontSize:10,background:C.tealL,color:C.tealD,padding:"1px 7px",borderRadius:20,marginLeft:8,fontWeight:700}}>YOU</span>}</div><div style={{fontSize:11.5,color:C.textL}}>{u.email}</div></div>
+                  </div>
+                </td>
+                <td style={S.td}>
+                  <div style={{...S.badge("active"),background:ri?.bg,color:ri?.color}}>{ri?.icon} {ri?.label}</div>
+                </td>
+                <td style={S.td}>{u.department||"—"}</td>
+                <td style={{...S.td,fontSize:12.5,color:C.textM}}>{u.phone||"—"}</td>
+                <td style={S.td}><span style={S.badge(u.status==="active"?"approved":"rejected")}>{u.status}</span></td>
+                <td style={{...S.td,fontSize:12,color:C.textL}}>{u.lastLogin||"Never"}</td>
+                <td style={S.td}>
+                  <div style={{display:"flex",gap:6}}>
+                    <button style={S.btn("ghost",true)} onClick={()=>setEditModal({...u})}>✏ Edit</button>
+                    {u.id!==currentUser.id&&(
+                      <>
+                        <button style={{...S.btn("ghost",true),color:u.status==="active"?C.gold:C.green}} onClick={()=>toggleStatus(u.id)}>{u.status==="active"?"⏸ Suspend":"▶ Activate"}</button>
+                        <button style={{...S.btn("ghost",true),color:C.red}} onClick={()=>deleteUser(u.id)}>🗑</button>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}</tbody>
+        </table>
+      </div>
+
+      {/* Add User Modal */}
+      {modal&&(
+        <div style={S.modal}>
+          <div style={S.mbox(620)}>
+            <div style={S.mhead}><div style={{fontSize:17,fontWeight:800}}>Add New User</div><button style={{...S.btn("ghost"),fontSize:22,padding:"2px 8px"}} onClick={()=>setModal(false)}>×</button></div>
+            <div style={{padding:"22px 28px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+                {[["name","Full Name *","text"],["email","Email *","email"],["password","Password *","password"],["phone","Phone","text"],].map(([k,l,t])=>(
+                  <div key={k}><label style={S.label}>{l}</label><input style={S.input} type={t} value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} placeholder={l.replace("*","")}/></div>
+                ))}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
+                <div><label style={S.label}>Role *</label><select style={S.input} value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))}>{Object.entries(ROLE_INFO).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}</select></div>
+                <div><label style={S.label}>Department *</label><select style={S.input} value={form.department} onChange={e=>setForm(f=>({...f,department:e.target.value}))}><option value="">Select...</option>{["Procurement","Finance","IT","HR","Operations","Legal","Admin","External"].map(d=><option key={d}>{d}</option>)}</select></div>
+              </div>
+              <div style={{background:ROLE_INFO[form.role]?.bg||C.bg,borderRadius:11,padding:"14px 16px",fontSize:12.5,color:C.textM}}>
+                <div style={{fontWeight:700,color:ROLE_INFO[form.role]?.color,marginBottom:8}}>{ROLE_INFO[form.role]?.icon} {ROLE_INFO[form.role]?.label} — Permissions</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+                  {Object.entries(PERMISSIONS[form.role]||{}).map(([k,v])=>(
+                    <div key={k} style={{display:"flex",gap:6,alignItems:"center"}}><span style={{color:v?C.green:C.textXL,fontSize:14}}>{v?"✓":"✗"}</span><span style={{color:v?C.text:C.textL}}>{k.replace(/([A-Z])/g," $1").replace("can","").trim()}</span></div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div style={S.mfoot}><button style={S.btn("ghost")} onClick={()=>setModal(false)}>Cancel</button><button style={S.btn("primary")} onClick={addUser}>Create User</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {editModal&&(
+        <div style={S.modal}>
+          <div style={S.mbox(580)}>
+            <div style={S.mhead}><div style={{fontSize:17,fontWeight:800}}>Edit User — {editModal.name}</div><button style={{...S.btn("ghost"),fontSize:22,padding:"2px 8px"}} onClick={()=>setEditModal(null)}>×</button></div>
+            <div style={{padding:"22px 28px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+                {[["name","Full Name"],["email","Email"],["phone","Phone"]].map(([k,l])=>(
+                  <div key={k}><label style={S.label}>{l}</label><input style={S.input} value={editModal[k]||""} onChange={e=>setEditModal(m=>({...m,[k]:e.target.value}))}/></div>
+                ))}
+                <div><label style={S.label}>Password (leave blank to keep)</label><input style={S.input} type="password" placeholder="New password..." value={editModal.newPass||""} onChange={e=>setEditModal(m=>({...m,newPass:e.target.value}))}/></div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                <div><label style={S.label}>Role</label><select style={S.input} value={editModal.role} onChange={e=>setEditModal(m=>({...m,role:e.target.value}))} disabled={editModal.id===currentUser.id}>{Object.entries(ROLE_INFO).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}</select></div>
+                <div><label style={S.label}>Department</label><select style={S.input} value={editModal.department||""} onChange={e=>setEditModal(m=>({...m,department:e.target.value}))}><option value="">Select...</option>{DEPTS.map(d=><option key={d}>{d}</option>)}</select></div>
+                <div><label style={S.label}>Status</label><select style={S.input} value={editModal.status} onChange={e=>setEditModal(m=>({...m,status:e.target.value}))} disabled={editModal.id===currentUser.id}><option value="active">Active</option><option value="suspended">Suspended</option></select></div>
+              </div>
+            </div>
+            <div style={S.mfoot}><button style={S.btn("ghost")} onClick={()=>setEditModal(null)}>Cancel</button><button style={S.btn("primary")} onClick={saveEdit}>Save Changes</button></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Dashboard ─────────────────────────────────────────────────────────────────
+function Dashboard({data,users,user,perms,setPage}){
+  const pending=data.approvals.filter(a=>a.status==="pending").length;
+  const totalSpend=data.orders.reduce((s,o)=>s+o.total,0);
+  const myName=u=>users.find(x=>x.id===u)?.name||u;
+
+  const stats=[
+    {label:"Active Vendors",val:data.vendors.filter(v=>v.status==="active").length,sub:"of "+data.vendors.length+" total",color:C.teal,icon:"🏢",page:"vendors"},
+    {label:"Active RFQs",val:data.rfqs.filter(r=>r.status==="active").length,sub:"Awaiting quotations",color:C.blue,icon:"📋",page:"rfqs"},
+    {label:"Pending Approvals",val:pending,sub:pending?"Needs attention":"All clear ✓",color:pending?C.gold:C.green,icon:"⏳",page:"approvals"},
+    {label:"Total PO Value",val:fmt(totalSpend),sub:"This quarter",color:C.purple,icon:"💰",page:"orders"},
+    {label:"Quotations",val:data.quotations.length,sub:data.quotations.filter(q=>q.status==="approved").length+" approved",color:C.orange,icon:"💬",page:"quotations"},
+    {label:"Invoices Raised",val:data.invoices.length,sub:fmt(data.invoices.reduce((s,i)=>s+i.total,0))+" total",color:C.green,icon:"🧾",page:"invoices"},
+  ];
+
+  return(
+    <div>
+      <div style={{marginBottom:22,padding:"18px 22px",background:`linear-gradient(135deg, ${C.navy}, ${C.navyM})`,borderRadius:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:20,fontWeight:800,color:C.white}}>Good morning, {user.name.split(" ")[0]} {ROLE_INFO[user.role]?.icon}</div>
+          <div style={{color:"#64748B",fontSize:13.5,marginTop:4}}>Here's your procurement overview for today, {new Date().toLocaleDateString("en-IN",{weekday:"long",month:"long",day:"numeric"})}</div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:11,color:C.textL}}>Your Role</div>
+          <div style={{...S.badge("active"),background:`${ROLE_INFO[user.role]?.color}25`,color:ROLE_INFO[user.role]?.color,fontSize:13,marginTop:4,padding:"5px 14px"}}>{ROLE_INFO[user.role]?.icon} {ROLE_INFO[user.role]?.label}</div>
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:24}}>
+        {stats.map(s=>(
+          <div key={s.label} style={{...S.card,cursor:"pointer",borderLeft:`4px solid ${s.color}`,transition:"transform 0.15s"}} onClick={()=>setPage(s.page)}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div>
+                <div style={{fontSize:11.5,color:C.textL,fontWeight:700,letterSpacing:"0.5px",textTransform:"uppercase",marginBottom:10}}>{s.label}</div>
+                <div style={{fontSize:28,fontWeight:900,color:C.text}}>{s.val}</div>
+                <div style={{fontSize:12,color:s.color,fontWeight:600,marginTop:6}}>{s.sub}</div>
+              </div>
+              <div style={{width:46,height:46,borderRadius:13,background:`${s.color}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{s.icon}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"3fr 2fr",gap:20,marginBottom:20}}>
+        <div style={S.card}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{fontSize:15,fontWeight:800}}>Recent Purchase Orders</div>
+            <button style={S.btn("ghost",true)} onClick={()=>setPage("orders")}>View all →</button>
+          </div>
+          {data.orders.length===0?<div style={{textAlign:"center",padding:28,color:C.textL}}>No purchase orders yet.</div>:(
+            <table style={S.table}>
+              <thead><tr>{["PO #","Vendor","Amount","Status"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <tbody>{data.orders.map(o=>{const v=data.vendors.find(x=>x.id===o.vendorId);return(
+                <tr key={o.id}><td style={{...S.td,fontWeight:800,color:C.tealD,fontSize:13}}>{o.id}</td><td style={S.td}>{v?.name}</td><td style={{...S.td,fontWeight:700}}>{fmt(o.total)}</td><td style={S.td}><span style={S.badge("issued")}>{o.status}</span></td></tr>
+              );})}</tbody>
+            </table>
+          )}
+        </div>
+
+        <div style={S.card}>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>⏳ Pending Approvals</div>
+          {data.approvals.filter(a=>a.status==="pending").length===0
+            ?<div style={{textAlign:"center",padding:28,color:C.green,fontWeight:600}}>✅ All approvals cleared!</div>
+            :data.approvals.filter(a=>a.status==="pending").map(a=>{
+              const rfq=data.rfqs.find(r=>r.id===a.rfqId);
+              return(
+                <div key={a.id} style={{padding:"12px 0",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div><div style={{fontWeight:600,fontSize:13.5}}>{rfq?.title}</div><div style={{color:C.textL,fontSize:12,marginTop:3}}>by {myName(a.requestedBy)}</div></div>
+                  {perms.canApprove?<button style={S.btn("primary",true)} onClick={()=>setPage("approvals")}>Review</button>:<span style={{fontSize:12,color:C.textL}}>Pending</span>}
+                </div>
+              );
+            })
+          }
+        </div>
+      </div>
+
+      <div style={S.card}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{fontSize:15,fontWeight:800}}>Activity Feed</div>
+          <button style={S.btn("ghost",true)} onClick={()=>setPage("logs")}>Full log →</button>
+        </div>
+        {data.logs.slice(0,6).map((l,i)=>{
+          const icons={invoice:"🧾",po:"📦",approval:"✅",rfq:"📋",vendor:"🏢"};
+          const bgs={invoice:C.blueL,po:C.goldL,approval:C.greenL,rfq:C.purpleL,vendor:C.tealL};
+          return(
+            <div key={l.id} style={{display:"flex",gap:14,padding:"11px 0",borderBottom:i<5?`1px solid ${C.border}`:"none"}}>
+              <div style={{width:36,height:36,borderRadius:10,background:bgs[l.type]||C.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{icons[l.type]||"📝"}</div>
+              <div style={{flex:1}}><div style={{fontSize:13.5,color:C.text,fontWeight:500}}>{l.action}</div><div style={{fontSize:12,color:C.textL,marginTop:3}}>{myName(l.user)} · {l.time}</div></div>
+              <span style={{...S.badge(l.type==="approval"?"approved":"active"),alignSelf:"flex-start",flexShrink:0}}>{l.type}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Vendors ───────────────────────────────────────────────────────────────────
+function Vendors({data,setData,perms,user,addToast}){
+  const[search,setSearch]=useState("");const[filter,setFilter]=useState("all");
+  const[modal,setModal]=useState(false);const[detail,setDetail]=useState(null);
+  const[form,setForm]=useState({name:"",category:"",gst:"",email:"",phone:"",city:"",contact:"",website:"",pan:""});
+  const CATS=["IT Equipment","Office Supplies","Networking","Printing","Cloud Services","Furniture","Logistics","Consulting","Manufacturing","Security"];
+  const filtered=data.vendors.filter(v=>(filter==="all"||v.status===filter)&&(v.name+v.category+v.city+v.contact).toLowerCase().includes(search.toLowerCase()));
+  const add=()=>{
+    if(!form.name||!form.email){addToast("Name and Email are required","error");return;}
+    const id="V"+String(data.vendors.length+1).padStart(3,"0");
+    setData(d=>({...d,vendors:[...d.vendors,{...form,id,status:"active",rating:4.0}],logs:[{id:d.logs.length+1,action:`Vendor ${form.name} registered`,user:user.id,time:"just now",type:"vendor"},...d.logs]}));
+    addToast(`Vendor ${form.name} registered`);
+    setModal(false);setForm({name:"",category:"",gst:"",email:"",phone:"",city:"",contact:"",website:"",pan:""});
+  };
+  const toggleStatus=(vid)=>{
+    setData(d=>({...d,vendors:d.vendors.map(v=>v.id===vid?{...v,status:v.status==="active"?"inactive":"active"}:v)}));
+    addToast("Vendor status updated");
+  };
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
+        <div style={{display:"flex",gap:10}}>
+          <input style={{...S.input,width:280}} placeholder="🔍 Search vendors..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          <select style={{...S.input,width:140}} value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <button style={S.btn("ghost")} onClick={()=>downloadCSV(`Vendors_${today()}.csv`,["ID","Name","Category","GST","Email","City","Status","Rating"],filtered.map(v=>[v.id,v.name,v.category,v.gst,v.email,v.city,v.status,v.rating]))}>⬇ Export</button>
+          {perms.canManageVendors&&<button style={S.btn("primary")} onClick={()=>setModal(true)}>+ Register Vendor</button>}
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:20}}>
+        {[["Total",data.vendors.length,C.navy],["Active",data.vendors.filter(v=>v.status==="active").length,C.green],["Inactive",data.vendors.filter(v=>v.status==="inactive").length,C.red],["Avg Rating",(data.vendors.reduce((s,v)=>s+v.rating,0)/data.vendors.length).toFixed(1)+"★",C.gold]].map(([l,v,c])=>(
+          <div key={l} style={{...S.card,borderTop:`4px solid ${c}`}}><div style={{fontSize:11,color:C.textL,fontWeight:700,textTransform:"uppercase",marginBottom:6}}>{l}</div><div style={{fontSize:24,fontWeight:900,color:C.text}}>{v}</div></div>
+        ))}
+      </div>
+      <div style={S.card}>
+        <table style={S.table}>
+          <thead><tr>{["Vendor","Category","Contact","GST","City","Rating","Status","Actions"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <tbody>{filtered.map(v=>(
+            <tr key={v.id} style={{cursor:"pointer"}} onClick={()=>setDetail(v)}>
+              <td style={S.td}><div style={{fontWeight:700}}>{v.name}</div><div style={{fontSize:11.5,color:C.textL}}>{v.id}</div></td>
+              <td style={S.td}><span style={{background:C.tealL,color:C.tealD,padding:"3px 10px",borderRadius:20,fontSize:11.5,fontWeight:700}}>{v.category}</span></td>
+              <td style={S.td}><div style={{fontSize:13}}>{v.contact||"—"}</div><div style={{fontSize:11.5,color:C.tealD}}>{v.email}</div></td>
+              <td style={{...S.td,fontFamily:"monospace",fontSize:12}}>{v.gst}</td>
+              <td style={S.td}>{v.city}</td>
+              <td style={S.td}><Stars n={v.rating}/></td>
+              <td style={S.td}><span style={S.badge(v.status)}>{v.status}</span></td>
+              <td style={S.td} onClick={e=>e.stopPropagation()}>
+                <div style={{display:"flex",gap:6}}>
+                  <button style={S.btn("ghost",true)} onClick={()=>setDetail(v)}>View</button>
+                  {perms.canManageVendors&&<button style={{...S.btn("ghost",true),color:v.status==="active"?C.gold:C.green}} onClick={()=>toggleStatus(v.id)}>{v.status==="active"?"Deactivate":"Activate"}</button>}
+                </div>
+              </td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      {detail&&(
+        <div style={S.modal}>
+          <div style={S.mbox(540)}>
+            <div style={S.mhead}>
+              <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                <div style={{width:46,height:46,borderRadius:13,background:C.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🏢</div>
+                <div><div style={{fontSize:17,fontWeight:800}}>{detail.name}</div><div style={{fontSize:12,color:C.textL}}>{detail.id} · {detail.city}</div></div>
+              </div>
+              <button style={{...S.btn("ghost"),fontSize:22,padding:"2px 8px"}} onClick={()=>setDetail(null)}>×</button>
+            </div>
+            <div style={{padding:"22px 28px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:18}}>
+                {[["Category",detail.category],["GST Number",detail.gst],["PAN",detail.pan||"—"],["Email",detail.email],["Phone",detail.phone],["Contact Person",detail.contact||"—"],["Website",detail.website||"—"],["Status",detail.status.toUpperCase()]].map(([k,v])=>(
+                  <div key={k} style={{background:"#F8FAFC",borderRadius:9,padding:"10px 14px"}}><div style={{fontSize:11,color:C.textL,fontWeight:700,marginBottom:4}}>{k}</div><div style={{fontWeight:600,fontSize:13.5}}>{v}</div></div>
+                ))}
+              </div>
+              <div style={{fontSize:13.5,fontWeight:700,marginBottom:12}}>Procurement Stats</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                {[["RFQs",data.rfqs.filter(r=>r.vendors.includes(detail.id)).length,C.blue],["Quotes",data.quotations.filter(q=>q.vendorId===detail.id).length,C.teal],["POs",data.orders.filter(o=>o.vendorId===detail.id).length,C.purple],["Spend",fmt(data.orders.filter(o=>o.vendorId===detail.id).reduce((s,o)=>s+o.total,0)),C.gold]].map(([l,v,c])=>(
+                  <div key={l} style={{textAlign:"center",padding:"12px 8px",background:C.bg,borderRadius:10}}><div style={{fontSize:18,fontWeight:900,color:c}}>{v}</div><div style={{fontSize:11,color:C.textL,marginTop:4}}>{l}</div></div>
+                ))}
+              </div>
+            </div>
+            <div style={S.mfoot}><button style={S.btn("ghost")} onClick={()=>setDetail(null)}>Close</button></div>
+          </div>
+        </div>
+      )}
+      {modal&&perms.canManageVendors&&(
+        <div style={S.modal}>
+          <div style={S.mbox(640)}>
+            <div style={S.mhead}><div style={{fontSize:17,fontWeight:800}}>Register New Vendor</div><button style={{...S.btn("ghost"),fontSize:22,padding:"2px 8px"}} onClick={()=>setModal(false)}>×</button></div>
+            <div style={{padding:"22px 28px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                {[["name","Company Name *"],["contact","Contact Person"],["email","Email *"],["phone","Phone"],["gst","GST Number"],["pan","PAN Number"],["city","City"],["website","Website"]].map(([k,l])=>(
+                  <div key={k}><label style={S.label}>{l}</label><input style={S.input} value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} placeholder={l.replace("*","")}/></div>
+                ))}
+                <div style={{gridColumn:"1/-1"}}><label style={S.label}>Category *</label><select style={S.input} value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}><option value="">Select category...</option>{CATS.map(c=><option key={c}>{c}</option>)}</select></div>
+              </div>
+            </div>
+            <div style={S.mfoot}><button style={S.btn("ghost")} onClick={()=>setModal(false)}>Cancel</button><button style={S.btn("primary")} onClick={add}>Register Vendor</button></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── RFQs ──────────────────────────────────────────────────────────────────────
+function RFQs({data,setData,perms,user,addToast}){
+  const[modal,setModal]=useState(false);const[filter,setFilter]=useState("all");
+  const[form,setForm]=useState({title:"",deadline:"",vendors:[],notes:""});
+  const[items,setItems]=useState([{name:"",qty:1,unit:"pcs",budget:""}]);
+  const filtered=data.rfqs.filter(r=>filter==="all"||r.status===filter);
+  const submit=()=>{
+    if(!form.title||!form.deadline){addToast("Title and deadline are required","error");return;}
+    const id="RFQ-2025-"+String(data.rfqs.length+1).padStart(3,"0");
+    setData(d=>({...d,rfqs:[...d.rfqs,{...form,id,items,status:"active",createdAt:today(),createdBy:user.id}],logs:[{id:d.logs.length+1,action:`${id} created: ${form.title}`,user:user.id,time:"just now",type:"rfq"},...d.logs]}));
+    addToast("RFQ created and sent to vendors");
+    setModal(false);setForm({title:"",deadline:"",vendors:[],notes:""});setItems([{name:"",qty:1,unit:"pcs",budget:""}]);
+  };
+  const sC={active:C.blue,draft:C.textL,closed:C.textL};
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
+        <div style={{display:"flex",gap:6}}>{["all","active","draft","closed"].map(s=><button key={s} style={{...S.btn("ghost",true),background:filter===s?C.navy:"transparent",color:filter===s?C.white:C.textM,borderColor:filter===s?C.navy:C.border}} onClick={()=>setFilter(s)}>{s.charAt(0).toUpperCase()+s.slice(1)}</button>)}</div>
+        {perms.canCreateRFQ&&<button style={S.btn("primary")} onClick={()=>setModal(true)}>+ Create RFQ</button>}
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        {filtered.map(rfq=>{
+          const vens=data.vendors.filter(v=>rfq.vendors.includes(v.id));
+          const qCount=data.quotations.filter(q=>q.rfqId===rfq.id).length;
+          const creator=data.users?.find(u=>u.id===rfq.createdBy);
+          return(
+            <div key={rfq.id} style={{...S.card,borderLeft:`4px solid ${sC[rfq.status]||C.border}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:6}}>
+                    <span style={{fontWeight:800,color:C.tealD,fontSize:13}}>{rfq.id}</span>
+                    <span style={S.badge(rfq.status)}>{rfq.status}</span>
+                  </div>
+                  <div style={{fontSize:18,fontWeight:800}}>{rfq.title}</div>
+                  {rfq.notes&&<div style={{fontSize:12.5,color:C.textL,marginTop:4}}>📝 {rfq.notes}</div>}
+                </div>
+                <div style={{textAlign:"right",flexShrink:0,marginLeft:20}}>
+                  <div style={{fontSize:11,color:C.textL,fontWeight:700}}>DEADLINE</div>
+                  <div style={{fontSize:14,fontWeight:800,color:C.text,marginTop:3}}>{rfq.deadline}</div>
+                  <div style={{fontSize:11.5,color:C.textL,marginTop:3}}>Created {rfq.createdAt}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:20,marginTop:14,flexWrap:"wrap"}}>
+                <div style={{fontSize:13,color:C.textM}}><strong style={{color:C.text}}>Items:</strong> {rfq.items.map(i=>`${i.name} ×${i.qty} ${i.unit}`).join(", ")}</div>
+                <div style={{fontSize:13,color:C.textM}}><strong style={{color:C.text}}>Vendors:</strong> {vens.length?vens.map(v=>v.name).join(", "):"None"}</div>
+                <div style={{fontSize:13,color:qCount>0?C.green:C.textM,fontWeight:qCount>0?700:400}}><strong style={{color:C.text}}>Quotations:</strong> {qCount}</div>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length===0&&<div style={{...S.card,textAlign:"center",padding:48,color:C.textL}}>No RFQs found.</div>}
+      </div>
+      {modal&&perms.canCreateRFQ&&(
+        <div style={S.modal}>
+          <div style={S.mbox(680)}>
+            <div style={S.mhead}><div style={{fontSize:17,fontWeight:800}}>Create New RFQ</div><button style={{...S.btn("ghost"),fontSize:22,padding:"2px 8px"}} onClick={()=>setModal(false)}>×</button></div>
+            <div style={{padding:"22px 28px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:14,marginBottom:14}}>
+                <div><label style={S.label}>RFQ Title *</label><input style={S.input} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Office Chair Procurement Q3"/></div>
+                <div><label style={S.label}>Deadline *</label><input style={S.input} type="date" value={form.deadline} onChange={e=>setForm(f=>({...f,deadline:e.target.value}))}/></div>
+              </div>
+              <div style={{marginBottom:14}}><label style={S.label}>Notes / Requirements</label><textarea style={{...S.input,height:64,resize:"vertical"}} value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Specific requirements, brands preferred, etc."/></div>
+              <div style={{marginBottom:14}}>
+                <label style={S.label}>Assign Vendors (select all that apply)</label>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                  {data.vendors.filter(v=>v.status==="active").map(v=>(
+                    <label key={v.id} style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer",padding:"6px 13px",border:`1.5px solid ${form.vendors.includes(v.id)?C.teal:C.border}`,borderRadius:20,background:form.vendors.includes(v.id)?C.tealL:C.white,color:form.vendors.includes(v.id)?C.tealD:C.text,fontWeight:500,transition:"all 0.15s"}}>
+                      <input type="checkbox" checked={form.vendors.includes(v.id)} onChange={e=>setForm(f=>({...f,vendors:e.target.checked?[...f.vendors,v.id]:f.vendors.filter(x=>x!==v.id)}))} style={{accentColor:C.teal}}/>{v.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><label style={{...S.label,margin:0}}>Line Items *</label><button style={S.btn("ghost",true)} onClick={()=>setItems(i=>[...i,{name:"",qty:1,unit:"pcs",budget:""}])}>+ Add Item</button></div>
+                {items.map((item,idx)=>(
+                  <div key={idx} style={{display:"grid",gridTemplateColumns:"2fr 80px 90px 100px 32px",gap:8,marginBottom:8}}>
+                    <input style={S.input} placeholder="Item/service name" value={item.name} onChange={e=>setItems(it=>it.map((x,i)=>i===idx?{...x,name:e.target.value}:x))}/>
+                    <input style={S.input} type="number" placeholder="Qty" value={item.qty} onChange={e=>setItems(it=>it.map((x,i)=>i===idx?{...x,qty:e.target.value}:x))}/>
+                    <select style={S.input} value={item.unit} onChange={e=>setItems(it=>it.map((x,i)=>i===idx?{...x,unit:e.target.value}:x))}>{["pcs","kg","L","box","reams","sets","units","licenses","hrs"].map(u=><option key={u}>{u}</option>)}</select>
+                    <input style={S.input} type="number" placeholder="Budget ₹" value={item.budget} onChange={e=>setItems(it=>it.map((x,i)=>i===idx?{...x,budget:e.target.value}:x))}/>
+                    <button style={{...S.btn("ghost",true),color:C.red,padding:"6px 8px"}} onClick={()=>setItems(it=>it.filter((_,i)=>i!==idx))}>×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={S.mfoot}><button style={S.btn("ghost")} onClick={()=>setModal(false)}>Cancel</button><button style={S.btn("primary")} onClick={submit}>Create & Send RFQ</button></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Quotations ────────────────────────────────────────────────────────────────
+function Quotations({data,setData,perms,user,addToast}){
+  const[modal,setModal]=useState(false);
+  const[form,setForm]=useState({rfqId:"",vendorId:"",price:"",delivery:"",notes:""});
+  const submit=()=>{
+    if(!form.rfqId||!form.vendorId||!form.price){addToast("Please fill all required fields","error");return;}
+    const id="Q"+String(data.quotations.length+1).padStart(3,"0");
+    setData(d=>({...d,quotations:[...d.quotations,{...form,id,status:"submitted",submittedAt:today(),price:+form.price,delivery:+form.delivery}],logs:[{id:d.logs.length+1,action:`Quotation ${id} submitted for ${form.rfqId}`,user:user.id,time:"just now",type:"rfq"},...d.logs]}));
+    addToast("Quotation submitted successfully");
+    setModal(false);setForm({rfqId:"",vendorId:"",price:"",delivery:"",notes:""});
+  };
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:20,gap:10}}>
+        <button style={S.btn("ghost")} onClick={()=>downloadCSV(`Quotations_${today()}.csv`,["ID","RFQ","Vendor","Price","Delivery","Status"],data.quotations.map(q=>{const r=data.rfqs.find(x=>x.id===q.rfqId);const v=data.vendors.find(x=>x.id===q.vendorId);return[q.id,r?.title||"",v?.name||"",q.price,q.delivery,q.status];}))}>⬇ Export</button>
+        {perms.canSubmitQuote&&<button style={S.btn("primary")} onClick={()=>setModal(true)}>+ Submit Quotation</button>}
+      </div>
+      <div style={S.card}>
+        <table style={S.table}>
+          <thead><tr>{["Quote ID","RFQ","Vendor","Price","Delivery","Status","Submitted","Notes"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <tbody>{data.quotations.map(q=>{
+            const rfq=data.rfqs.find(r=>r.id===q.rfqId);const v=data.vendors.find(x=>x.id===q.vendorId);
+            return(<tr key={q.id}>
+              <td style={{...S.td,fontWeight:800,color:C.tealD}}>{q.id}</td>
+              <td style={S.td}><div style={{fontWeight:500,fontSize:13}}>{rfq?.title||q.rfqId}</div></td>
+              <td style={S.td}><div style={{fontWeight:600}}>{v?.name||q.vendorId}</div><div style={{fontSize:11.5,color:C.textL}}>{v?.city}</div></td>
+              <td style={{...S.td,fontWeight:900,fontSize:15}}>{fmt(q.price)}</td>
+              <td style={S.td}><span style={{background:C.blueL,color:C.blueD,padding:"3px 9px",borderRadius:20,fontSize:12,fontWeight:700}}>{q.delivery}d</span></td>
+              <td style={S.td}><span style={S.badge(q.status)}>{q.status}</span></td>
+              <td style={{...S.td,fontSize:12,color:C.textL}}>{q.submittedAt}</td>
+              <td style={{...S.td,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:C.textM,fontSize:12.5}}>{q.notes}</td>
+            </tr>);
+          })}</tbody>
+        </table>
+      </div>
+      {modal&&perms.canSubmitQuote&&(
+        <div style={S.modal}>
+          <div style={S.mbox()}>
+            <div style={S.mhead}><div style={{fontSize:17,fontWeight:800}}>Submit Vendor Quotation</div><button style={{...S.btn("ghost"),fontSize:22,padding:"2px 8px"}} onClick={()=>setModal(false)}>×</button></div>
+            <div style={{padding:"22px 28px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+                <div><label style={S.label}>RFQ *</label><select style={S.input} value={form.rfqId} onChange={e=>setForm(f=>({...f,rfqId:e.target.value}))}><option value="">Select RFQ...</option>{data.rfqs.filter(r=>r.status==="active").map(r=><option key={r.id} value={r.id}>{r.id} — {r.title}</option>)}</select></div>
+                <div><label style={S.label}>Vendor *</label><select style={S.input} value={form.vendorId} onChange={e=>setForm(f=>({...f,vendorId:e.target.value}))}><option value="">Select Vendor...</option>{data.vendors.filter(v=>v.status==="active").map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
+                <div><label style={S.label}>Total Price (₹) *</label><input style={S.input} type="number" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} placeholder="e.g. 125000"/></div>
+                <div><label style={S.label}>Delivery (days) *</label><input style={S.input} type="number" value={form.delivery} onChange={e=>setForm(f=>({...f,delivery:e.target.value}))} placeholder="e.g. 14"/></div>
+              </div>
+              <div><label style={S.label}>Terms & Notes</label><textarea style={{...S.input,height:90,resize:"vertical"}} value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Warranty, payment terms, delivery conditions..."/></div>
+              {form.price&&<div style={{marginTop:14,background:C.tealXL,borderRadius:10,padding:"12px 16px",fontSize:13}}>
+                <div style={{fontWeight:700,color:C.tealD,marginBottom:6}}>Price Breakdown (18% GST)</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                  {[["Subtotal",fmt(+form.price)],["GST (18%)",fmt(Math.round(+form.price*0.18))],["Total",fmt(+form.price+Math.round(+form.price*0.18))]].map(([l,v])=>(
+                    <div key={l} style={{textAlign:"center",background:C.white,borderRadius:8,padding:"8px"}}><div style={{fontSize:11,color:C.textL}}>{l}</div><div style={{fontWeight:800,fontSize:14,color:C.tealD,marginTop:2}}>{v}</div></div>
+                  ))}
+                </div>
+              </div>}
+            </div>
+            <div style={S.mfoot}><button style={S.btn("ghost")} onClick={()=>setModal(false)}>Cancel</button><button style={S.btn("primary")} onClick={submit}>Submit Quotation</button></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Compare ───────────────────────────────────────────────────────────────────
+function Compare({data}){
+  const[rfqId,setRfqId]=useState(data.rfqs[0]?.id||"");
+  const quotes=data.quotations.filter(q=>q.rfqId===rfqId);
+  const minPrice=quotes.length?Math.min(...quotes.map(q=>q.price)):0;
+  const minDel=quotes.length?Math.min(...quotes.map(q=>q.delivery)):0;
+  return(
+    <div>
+      <div style={{...S.card,marginBottom:22}}>
+        <div style={{display:"flex",gap:14,alignItems:"flex-end"}}>
+          <div style={{flex:1}}><label style={S.label}>Select RFQ</label><select style={S.input} value={rfqId} onChange={e=>setRfqId(e.target.value)}>{data.rfqs.map(r=><option key={r.id} value={r.id}>{r.id} — {r.title}</option>)}</select></div>
+          <div style={{paddingBottom:1}}><span style={{...S.badge(quotes.length?"active":"draft"),padding:"8px 16px",fontSize:13}}>{quotes.length} quotation{quotes.length!==1?"s":""} received</span></div>
+        </div>
+      </div>
+      {quotes.length===0?(
+        <div style={{...S.card,textAlign:"center",padding:64,color:C.textL}}><div style={{fontSize:44,marginBottom:16}}>📭</div><div style={{fontSize:16,fontWeight:600}}>No quotations received yet</div><div style={{fontSize:13.5,marginTop:6}}>Vendors haven't submitted quotations for this RFQ.</div></div>
+      ):(
+        <>
+          <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(quotes.length,3)},1fr)`,gap:16,marginBottom:22}}>
+            {quotes.map(q=>{
+              const vendor=data.vendors.find(v=>v.id===q.vendorId);
+              const bp=q.price===minPrice,fd=q.delivery===minDel;
+              return(
+                <div key={q.id} style={{...S.card,border:bp?`2px solid ${C.teal}`:`1px solid ${C.border}`,position:"relative",overflow:"visible"}}>
+                  {bp&&<div style={{position:"absolute",top:-13,left:"50%",transform:"translateX(-50%)",background:C.teal,color:C.white,fontSize:12,fontWeight:800,padding:"4px 16px",borderRadius:20,whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(13,191,173,0.3)"}}>🏆 Best Price</div>}
+                  <div style={{marginTop:bp?10:0,marginBottom:16}}>
+                    <div style={{fontSize:18,fontWeight:900}}>{vendor?.name}</div>
+                    <div style={{fontSize:12,color:C.textL,marginTop:3}}>{q.id} · {q.submittedAt}</div>
+                  </div>
+                  <div style={{marginBottom:18}}>
+                    <div style={{fontSize:11,color:C.textL,fontWeight:700,marginBottom:4}}>QUOTED PRICE</div>
+                    <div style={{fontSize:32,fontWeight:900,color:bp?C.tealD:C.text}}>{fmt(q.price)}</div>
+                    <div style={{fontSize:12,color:C.textL,marginTop:2}}>+GST {fmt(Math.round(q.price*0.18))} = {fmt(q.price+Math.round(q.price*0.18))}</div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+                    <div style={{background:fd?C.greenL:C.bg,borderRadius:10,padding:"12px",textAlign:"center"}}>
+                      <div style={{fontSize:11,color:C.textL,fontWeight:700}}>DELIVERY</div>
+                      <div style={{fontSize:22,fontWeight:900,color:fd?C.green:C.text,marginTop:4}}>{q.delivery}d</div>
+                      {fd&&<div style={{fontSize:10,color:C.green,fontWeight:800,marginTop:2}}>⚡ Fastest</div>}
+                    </div>
+                    <div style={{background:C.bg,borderRadius:10,padding:"12px",textAlign:"center"}}>
+                      <div style={{fontSize:11,color:C.textL,fontWeight:700}}>VENDOR RATING</div>
+                      <div style={{fontSize:22,fontWeight:900,color:C.gold,marginTop:4}}>{vendor?.rating}★</div>
+                    </div>
+                  </div>
+                  <div style={{fontSize:12.5,color:C.textM,borderTop:`1px solid ${C.border}`,paddingTop:12,lineHeight:1.5}}>{q.notes}</div>
+                  <div style={{marginTop:12,display:"flex",gap:8}}><span style={S.badge(q.status)}>{q.status}</span></div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={S.card}>
+            <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>Comparison Matrix</div>
+            <table style={S.table}>
+              <thead><tr><th style={S.th}>Criterion</th>{quotes.map(q=>{const v=data.vendors.find(x=>x.id===q.vendorId);return<th key={q.id} style={S.th}>{v?.name}</th>;})}</tr></thead>
+              <tbody>
+                {[["Price (excl. GST)",q=>fmt(q.price),q=>q.price===minPrice],["Price (incl. 18% GST)",q=>fmt(q.price+Math.round(q.price*0.18)),q=>q.price===minPrice],["Delivery Time",q=>`${q.delivery} days`,q=>q.delivery===minDel],["Vendor Rating",q=>{const v=data.vendors.find(x=>x.id===q.vendorId);return`${v?.rating||"—"}★`;},()=>false],["Status",q=><span style={S.badge(q.status)}>{q.status}</span>,()=>false]].map(([label,render,win])=>(
+                  <tr key={label}><td style={{...S.td,fontWeight:600,color:C.textM,background:"#FAFAFA",width:180}}>{label}</td>{quotes.map(q=><td key={q.id} style={{...S.td,background:win(q)?C.tealXL:"",fontWeight:win(q)?800:400,color:win(q)?C.tealD:C.text}}>{render(q)}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Approvals ─────────────────────────────────────────────────────────────────
+function Approvals({data,setData,perms,user,addToast}){
+  const[remarks,setRemarks]=useState({});
+  const[filter,setFilter]=useState("all");
+  const uName=id=>data._users?.find(u=>u.id===id)?.name||id;
+  const handle=(id,action)=>{
+    if(!perms.canApprove){addToast("You don't have approval authority","error");return;}
+    setData(d=>({...d,
+      approvals:d.approvals.map(a=>a.id===id?{...a,status:action,approvedBy:user.id,remarks:remarks[id]||""}:a),
+      quotations:action==="approved"?d.quotations.map(q=>{const a=d.approvals.find(x=>x.id===id);return q.id===a?.quotationId?{...q,status:"approved"}:q;}):d.quotations,
+      logs:[{id:d.logs.length+1,action:`Approval ${id} ${action} by ${user.name}`,user:user.id,time:"just now",type:"approval"},...d.logs]
+    }));
+    addToast(`Request ${action} successfully`,action==="approved"?"success":"error");
+  };
+  const initApproval=(rfqId2,quotationId)=>{
+    if(!perms.canCreateRFQ&&!perms.canGeneratePO){addToast("No permission","error");return;}
+    const existing=data.approvals.find(a=>a.quotationId===quotationId);
+    if(existing){addToast("Approval already requested","warn");return;}
+    const id="APR-"+String(data.approvals.length+1).padStart(3,"0");
+    setData(d=>({...d,approvals:[...d.approvals,{id,rfqId:rfqId2,quotationId,requestedBy:user.id,approvedBy:null,status:"pending",remarks:"",date:today()}],logs:[{id:d.logs.length+1,action:`Approval requested for ${quotationId}`,user:user.id,time:"just now",type:"approval"},...d.logs]}));
+    addToast("Approval request sent to manager");
+  };
+  const filtered=data.approvals.filter(a=>filter==="all"||a.status===filter);
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
+        <div style={{display:"flex",gap:6}}>{["all","pending","approved","rejected"].map(s=><button key={s} style={{...S.btn("ghost",true),background:filter===s?C.navy:"transparent",color:filter===s?C.white:C.textM,borderColor:filter===s?C.navy:C.border}} onClick={()=>setFilter(s)}>{s.charAt(0).toUpperCase()+s.slice(1)}{s==="pending"&&data.approvals.filter(a=>a.status==="pending").length>0&&<span style={{background:C.red,color:C.white,borderRadius:"50%",padding:"1px 6px",fontSize:10,marginLeft:6}}>{data.approvals.filter(a=>a.status==="pending").length}</span>}</button>)}</div>
+        <div style={{fontSize:13,color:C.textL,display:"flex",alignItems:"center",gap:6}}>
+          {perms.canApprove?<><span style={{color:C.green}}>✓</span> You have approval authority</>:<><span style={{color:C.red}}>✗</span> View only — no approval authority</>}
+        </div>
+      </div>
+
+      {/* Quotations awaiting approval request */}
+      {perms.canCreateRFQ&&(
+        <div style={{...S.card,marginBottom:20,borderLeft:`4px solid ${C.blue}`}}>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>📋 Quotations Ready for Approval Request</div>
+          {data.quotations.filter(q=>q.status==="submitted"&&!data.approvals.find(a=>a.quotationId===q.id)).length===0
+            ?<div style={{color:C.textL,fontSize:13}}>All submitted quotations have approval requests.</div>
+            :data.quotations.filter(q=>q.status==="submitted"&&!data.approvals.find(a=>a.quotationId===q.id)).map(q=>{
+              const rfq=data.rfqs.find(r=>r.id===q.rfqId);const v=data.vendors.find(x=>x.id===q.vendorId);
+              return(
+                <div key={q.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+                  <div><div style={{fontWeight:600,fontSize:13.5}}>{q.id} — {rfq?.title}</div><div style={{fontSize:12,color:C.textL}}>{v?.name} · {fmt(q.price)}</div></div>
+                  <button style={S.btn("blue",true)} onClick={()=>initApproval(q.rfqId,q.id)}>Request Approval</button>
+                </div>
+              );
+            })
+          }
+        </div>
+      )}
+
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        {filtered.map(a=>{
+          const rfq=data.rfqs.find(r=>r.id===a.rfqId);
+          const q=data.quotations.find(x=>x.id===a.quotationId);
+          const vendor=data.vendors.find(v=>v.id===q?.vendorId);
+          return(
+            <div key={a.id} style={{...S.card,borderLeft:`4px solid ${a.status==="pending"?C.gold:a.status==="approved"?C.green:C.red}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+                <div>
+                  <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:5}}><span style={{fontWeight:700,fontSize:12,color:C.textL}}>{a.id}</span><span style={S.badge(a.status)}>{a.status}</span></div>
+                  <div style={{fontSize:18,fontWeight:800}}>{rfq?.title}</div>
+                  <div style={{fontSize:12.5,color:C.textL,marginTop:3}}>Requested on {a.date}</div>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
+                {[["Quotation",a.quotationId,C.purple],["Vendor",vendor?.name||"—",C.teal],["Quote Value",q?fmt(q.price):"—",C.gold],["Delivery",q?`${q.delivery} days`:"—",C.blue]].map(([l,v,c])=>(
+                  <div key={l} style={{background:"#F8FAFC",borderRadius:10,padding:"12px 14px",borderTop:`3px solid ${c}`}}><div style={{fontSize:10.5,color:C.textL,fontWeight:700,marginBottom:5,textTransform:"uppercase"}}>{l}</div><div style={{fontWeight:700,fontSize:14}}>{v}</div></div>
+                ))}
+              </div>
+              {a.status==="pending"&&perms.canApprove?(
+                <div>
+                  <div style={{marginBottom:12}}><label style={S.label}>Your Decision Remarks</label><input style={S.input} placeholder="Add remarks before approving/rejecting..." value={remarks[a.id]||""} onChange={e=>setRemarks(r=>({...r,[a.id]:e.target.value}))}/></div>
+                  <div style={{display:"flex",gap:10}}>
+                    <button style={S.btn("success")} onClick={()=>handle(a.id,"approved")}>✓ Approve Procurement</button>
+                    <button style={S.btn("danger")} onClick={()=>handle(a.id,"rejected")}>✗ Reject</button>
+                  </div>
+                </div>
+              ):a.status==="pending"?(
+                <div style={{background:C.goldL,borderRadius:9,padding:"10px 14px",fontSize:13,color:C.goldD}}>⏳ Awaiting approval from a Manager. You don't have approval authority.</div>
+              ):(
+                a.remarks&&<div style={{background:a.status==="approved"?C.greenL:C.redL,borderRadius:9,padding:"12px 14px",fontSize:13,color:a.status==="approved"?C.greenD:C.redD}}><strong>Remarks:</strong> "{a.remarks}"</div>
+              )}
+            </div>
+          );
+        })}
+        {filtered.length===0&&<div style={{...S.card,textAlign:"center",padding:40,color:C.textL}}>No approvals found.</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Purchase Orders ────────────────────────────────────────────────────────────
+function Orders({data,setData,perms,user,addToast}){
+  const[modal,setModal]=useState(false);const[form,setForm]=useState({rfqId:"",quotationId:""});const[invModal,setInvModal]=useState(null);
+  const create=()=>{
+    const q=data.quotations.find(x=>x.id===form.quotationId);if(!q){addToast("Select a quotation","error");return;}
+    const approval=data.approvals.find(a=>a.quotationId===form.quotationId);
+    if(!approval||approval.status!=="approved"){addToast("Quotation must be approved first","error");return;}
+    const rfq=data.rfqs.find(r=>r.id===form.rfqId);
+    const tax=Math.round(q.price*0.18);
+    const id="PO-2025-"+String(data.orders.length+1).padStart(3,"0");
+    const totalQty=rfq?.items?.reduce((s,i)=>s+Number(i.qty),0)||1;
+    const po={id,rfqId:form.rfqId,quotationId:q.id,vendorId:q.vendorId,amount:q.price,tax,total:q.price+tax,status:"issued",createdAt:today(),createdBy:user.id,items:rfq?.items?.map(i=>({name:i.name,qty:i.qty,rate:Math.round(q.price/totalQty),amount:Math.round(q.price*Number(i.qty)/totalQty)}))||[]};
+    setData(d=>({...d,orders:[...d.orders,po],logs:[{id:d.logs.length+1,action:`${id} generated for ${rfq?.title}`,user:user.id,time:"just now",type:"po"},...d.logs]}));
+    addToast(`${id} generated successfully`);setModal(false);
+  };
+  const genInvoice=(po)=>{
+    if(data.invoices.find(i=>i.poId===po.id)){addToast("Invoice already exists for this PO","warn");return;}
+    const id="INV-2025-"+String(data.invoices.length+1).padStart(3,"0");
+    const inv={id,poId:po.id,vendorId:po.vendorId,amount:po.amount,tax:po.tax,total:po.total,status:"draft",createdAt:today(),dueDate:new Date(Date.now()+30*86400000).toISOString().slice(0,10),createdBy:user.id};
+    setData(d=>({...d,invoices:[...d.invoices,inv]}));setInvModal(inv);addToast("Invoice generated");
+  };
+  const approvedQuotes=data.quotations.filter(q=>q.status==="approved"&&!data.orders.find(o=>o.quotationId===q.id));
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:20,gap:10}}>
+        <button style={S.btn("ghost")} onClick={()=>downloadCSV(`POs_${today()}.csv`,["PO#","Vendor","Subtotal","GST","Total","Status","Date"],data.orders.map(o=>{const v=data.vendors.find(x=>x.id===o.vendorId);return[o.id,v?.name||"",o.amount,o.tax,o.total,o.status,o.createdAt];}))}>⬇ Export</button>
+        {perms.canGeneratePO&&<button style={S.btn("primary")} onClick={()=>setModal(true)}>+ Generate PO</button>}
+      </div>
+      {approvedQuotes.length>0&&perms.canGeneratePO&&(
+        <div style={{...S.card,marginBottom:20,borderLeft:`4px solid ${C.green}`,background:C.greenL}}>
+          <div style={{fontSize:13.5,fontWeight:700,color:C.greenD,marginBottom:10}}>✅ {approvedQuotes.length} approved quotation{approvedQuotes.length>1?"s":""} ready for PO generation</div>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            {approvedQuotes.map(q=>{const v=data.vendors.find(x=>x.id===q.vendorId);const r=data.rfqs.find(x=>x.id===q.rfqId);return(
+              <span key={q.id} style={{background:C.white,borderRadius:8,padding:"6px 12px",fontSize:12.5,fontWeight:600,color:C.greenD,border:`1px solid ${C.green}30`}}>{q.id} — {v?.name} — {fmt(q.price)} <span style={{cursor:"pointer",color:C.teal,marginLeft:4}} onClick={()=>{setForm({rfqId:q.rfqId,quotationId:q.id});setModal(true);}}>Generate →</span></span>
+            );})}
+          </div>
+        </div>
+      )}
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        {data.orders.map(po=>{
+          const vendor=data.vendors.find(v=>v.id===po.vendorId);const rfq=data.rfqs.find(r=>r.id===po.rfqId);const ei=data.invoices.find(i=>i.poId===po.id);
+          return(
+            <div key={po.id} style={S.card}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+                <div><div style={{display:"flex",gap:10,alignItems:"center",marginBottom:5}}><span style={{fontSize:20,fontWeight:900}}>{po.id}</span><span style={S.badge("issued")}>Issued</span></div><div style={{fontSize:13.5,color:C.textM}}>{rfq?.title} · <strong style={{color:C.text}}>{vendor?.name}</strong></div><div style={{fontSize:12,color:C.textL,marginTop:3}}>Created: {po.createdAt}</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontSize:30,fontWeight:900,color:C.tealD}}>{fmt(po.total)}</div><div style={{fontSize:12,color:C.textL}}>{fmt(po.amount)} + GST {fmt(po.tax)}</div></div>
+              </div>
+              <table style={{...S.table,marginBottom:16}}><thead><tr>{["Item","Qty","Unit Rate","Amount"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead><tbody>{po.items.map((it,i)=><tr key={i}><td style={S.td}>{it.name}</td><td style={S.td}>{it.qty}</td><td style={S.td}>{fmt(it.rate)}</td><td style={{...S.td,fontWeight:700}}>{fmt(it.amount)}</td></tr>)}</tbody></table>
+              <div style={{display:"flex",gap:10}}>
+                {perms.canGenerateInvoice&&!ei?<button style={S.btn("primary")} onClick={()=>genInvoice(po)}>🧾 Generate Invoice</button>:ei?<span style={{...S.badge("sent"),padding:"8px 16px",fontSize:13}}>Invoice: {ei.id} ({ei.status})</span>:null}
+                <button style={S.btn("ghost")} onClick={()=>window.print()}>🖨 Print</button>
+                <button style={S.btn("ghost")} onClick={()=>downloadCSV(`${po.id}.csv`,["Item","Qty","Rate","Amount"],po.items.map(i=>[i.name,i.qty,i.rate,i.amount]))}>⬇ Export</button>
+              </div>
+            </div>
+          );
+        })}
+        {data.orders.length===0&&<div style={{...S.card,textAlign:"center",padding:48,color:C.textL}}>No purchase orders yet.</div>}
+      </div>
+      {modal&&perms.canGeneratePO&&(
+        <div style={S.modal}><div style={S.mbox()}>
+          <div style={S.mhead}><div style={{fontSize:17,fontWeight:800}}>Generate Purchase Order</div><button style={{...S.btn("ghost"),fontSize:22,padding:"2px 8px"}} onClick={()=>setModal(false)}>×</button></div>
+          <div style={{padding:"22px 28px"}}>
+            <div style={{marginBottom:14}}><label style={S.label}>RFQ</label><select style={S.input} value={form.rfqId} onChange={e=>setForm(f=>({...f,rfqId:e.target.value,quotationId:""}))}><option value="">Select RFQ...</option>{data.rfqs.map(r=><option key={r.id} value={r.id}>{r.title}</option>)}</select></div>
+            <div style={{marginBottom:14}}><label style={S.label}>Approved Quotation</label><select style={S.input} value={form.quotationId} onChange={e=>setForm(f=>({...f,quotationId:e.target.value}))}><option value="">Select Quotation...</option>{data.quotations.filter(q=>q.rfqId===form.rfqId&&q.status==="approved").map(q=>{const v=data.vendors.find(x=>x.id===q.vendorId);return<option key={q.id} value={q.id}>{q.id} — {v?.name} — {fmt(q.price)}</option>;})}</select></div>
+            {form.quotationId&&(()=>{const q=data.quotations.find(x=>x.id===form.quotationId);if(!q)return null;return(<div style={{background:C.tealXL,borderRadius:10,padding:"14px 16px",marginTop:8}}><div style={{fontWeight:700,color:C.tealD,marginBottom:10}}>PO Summary</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>{[["Subtotal",fmt(q.price)],["GST (18%)",fmt(Math.round(q.price*0.18))],["Total",fmt(q.price+Math.round(q.price*0.18))]].map(([l,v])=><div key={l} style={{background:C.white,borderRadius:8,padding:"10px",textAlign:"center"}}><div style={{fontSize:11,color:C.textL}}>{l}</div><div style={{fontWeight:800,fontSize:14,color:C.tealD,marginTop:2}}>{v}</div></div>)}</div></div>);})()} 
+          </div>
+          <div style={S.mfoot}><button style={S.btn("ghost")} onClick={()=>setModal(false)}>Cancel</button><button style={S.btn("primary")} onClick={create}>Generate PO</button></div>
+        </div></div>
+      )}
+      {invModal&&(
+        <div style={S.modal}><div style={S.mbox(520)}>
+          <div style={S.mhead}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:40,height:40,borderRadius:11,background:C.greenL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🧾</div><div><div style={{fontSize:17,fontWeight:800}}>Invoice Generated</div><div style={{fontSize:12,color:C.textL}}>{invModal.id}</div></div></div><button style={{...S.btn("ghost"),fontSize:22,padding:"2px 8px"}} onClick={()=>setInvModal(null)}>×</button></div>
+          <div style={{padding:"22px 28px"}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+              {[["Invoice #",invModal.id],["PO Reference",invModal.poId],["Invoice Date",invModal.createdAt],["Due Date (30d)",invModal.dueDate],["Subtotal",fmt(invModal.amount)],["GST (18%)",fmt(invModal.tax)]].map(([k,v])=>(
+                <div key={k} style={{background:"#F8FAFC",borderRadius:9,padding:"10px 14px"}}><div style={{fontSize:11,color:C.textL,fontWeight:600,marginBottom:4}}>{k}</div><div style={{fontWeight:700,fontSize:14}}>{v}</div></div>
+              ))}
+            </div>
+            <div style={{background:C.tealL,borderRadius:12,padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><div style={{fontWeight:700,color:C.tealD}}>Total Amount Due</div><div style={{fontSize:28,fontWeight:900,color:C.tealD}}>{fmt(invModal.total)}</div></div>
+            <div style={{display:"flex",gap:10}}>
+              <button style={S.btn("primary")} onClick={()=>{setData(d=>({...d,invoices:d.invoices.map(i=>i.id===invModal.id?{...i,status:"sent"}:i),logs:[{id:d.logs.length+1,action:`Invoice ${invModal.id} sent via email`,user:user.id,time:"just now",type:"invoice"},...d.logs]}));addToast("Invoice emailed to vendor");setInvModal(null);}}>📧 Send Email</button>
+              <button style={S.btn("ghost")} onClick={()=>window.print()}>🖨 Print</button>
+              <button style={S.btn("ghost")} onClick={()=>downloadCSV(`${invModal.id}.csv`,["Field","Value"],[["Invoice#",invModal.id],["PO",invModal.poId],["Date",invModal.createdAt],["Due",invModal.dueDate],["Total",invModal.total]])}>⬇ Export</button>
+            </div>
+          </div>
+        </div></div>
+      )}
+    </div>
+  );
+}
+
+// ─── Invoices ──────────────────────────────────────────────────────────────────
+function Invoices({data,setData,addToast}){
+  const[viewM,setViewM]=useState(null);
+  const due=data.invoices.filter(i=>i.status!=="paid").reduce((s,i)=>s+i.total,0);
+  const paid=data.invoices.filter(i=>i.status==="paid").reduce((s,i)=>s+i.total,0);
+  return(
+    <div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:22}}>
+        {[["Total Invoices",data.invoices.length,C.navy],["Amount Due",fmt(due),C.gold],["Amount Paid",fmt(paid),C.green],["Overdue","0",C.red]].map(([l,v,c])=>(
+          <div key={l} style={{...S.card,borderTop:`4px solid ${c}`}}><div style={{fontSize:11,color:C.textL,fontWeight:700,textTransform:"uppercase",marginBottom:6}}>{l}</div><div style={{fontSize:22,fontWeight:900,color:C.text}}>{v}</div></div>
+        ))}
+      </div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
+        <button style={S.btn("ghost")} onClick={()=>downloadCSV(`Invoices_${today()}.csv`,["Invoice#","PO","Vendor","Total","Status","Date","Due Date"],data.invoices.map(i=>{const v=data.vendors.find(x=>x.id===i.vendorId);return[i.id,i.poId,v?.name||"",i.total,i.status,i.createdAt,i.dueDate];}))}>⬇ Export All</button>
+      </div>
+      <div style={S.card}>
+        <table style={S.table}>
+          <thead><tr>{["Invoice #","PO Ref","Vendor","Subtotal","GST","Total","Status","Date","Due","Actions"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+          <tbody>{data.invoices.map(inv=>{const v=data.vendors.find(x=>x.id===inv.vendorId);return(
+            <tr key={inv.id}>
+              <td style={{...S.td,fontWeight:800,color:C.tealD}}>{inv.id}</td>
+              <td style={S.td}>{inv.poId}</td>
+              <td style={S.td}><div style={{fontWeight:600}}>{v?.name}</div></td>
+              <td style={S.td}>{fmt(inv.amount)}</td><td style={S.td}>{fmt(inv.tax)}</td>
+              <td style={{...S.td,fontWeight:900,fontSize:15}}>{fmt(inv.total)}</td>
+              <td style={S.td}><span style={S.badge(inv.status)}>{inv.status}</span></td>
+              <td style={{...S.td,fontSize:12,color:C.textL}}>{inv.createdAt}</td>
+              <td style={{...S.td,fontSize:12,color:C.textL}}>{inv.dueDate}</td>
+              <td style={S.td}>
+                <div style={{display:"flex",gap:5}}>
+                  <button style={S.btn("ghost",true)} onClick={()=>setViewM(inv)}>View</button>
+                  {inv.status==="draft"&&<button style={S.btn("primary",true)} onClick={()=>{setData(d=>({...d,invoices:d.invoices.map(i=>i.id===inv.id?{...i,status:"sent"}:i)}));addToast("Invoice sent");}}>Send</button>}
+                  {inv.status==="sent"&&<button style={{...S.btn("ghost",true),color:C.green,outline:`1px solid ${C.green}40`}} onClick={()=>{setData(d=>({...d,invoices:d.invoices.map(i=>i.id===inv.id?{...i,status:"paid"}:i)}));addToast("Invoice marked paid");}}>Mark Paid</button>}
+                </div>
+              </td>
+            </tr>
+          );})}
+          </tbody>
+        </table>
+      </div>
+      {viewM&&(
+        <div style={S.modal}><div style={S.mbox(520)}>
+          <div style={S.mhead}><div><div style={{fontSize:17,fontWeight:800}}>{viewM.id}</div><div style={{fontSize:12,color:C.textL}}>PO: {viewM.poId}</div></div><button style={{...S.btn("ghost"),fontSize:22,padding:"2px 8px"}} onClick={()=>setViewM(null)}>×</button></div>
+          <div style={{padding:"22px 28px"}}>
+            {[["Vendor",data.vendors.find(v=>v.id===viewM.vendorId)?.name||""],["Invoice Date",viewM.createdAt],["Due Date",viewM.dueDate],["Subtotal",fmt(viewM.amount)],["GST (18%)",fmt(viewM.tax)],["Total Amount",fmt(viewM.total)],["Status",viewM.status.toUpperCase()]].map(([k,v])=>(
+              <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"11px 0",borderBottom:`1px solid ${C.border}`}}><span style={{fontSize:13.5,color:C.textM}}>{k}</span><span style={{fontWeight:k==="Total Amount"?900:600,fontSize:k==="Total Amount"?20:14,color:k==="Total Amount"?C.tealD:C.text}}>{v}</span></div>
+            ))}
+            <div style={{display:"flex",gap:10,marginTop:20}}>
+              <button style={S.btn("ghost")} onClick={()=>downloadCSV(`${viewM.id}.csv`,["Field","Value"],[["Invoice#",viewM.id],["Date",viewM.createdAt],["Total",viewM.total]])}>⬇ Download</button>
+              <button style={S.btn("ghost")} onClick={()=>window.print()}>🖨 Print</button>
+            </div>
+          </div>
+        </div></div>
+      )}
+    </div>
+  );
+}
+
+// ─── Logs ──────────────────────────────────────────────────────────────────────
+function Logs({data,users}){
+  const[filter,setFilter]=useState("all");
+  const uName=id=>users.find(u=>u.id===id)?.name||id;
+  const types=["all","invoice","po","approval","rfq","vendor"];
+  const icons={invoice:"🧾",po:"📦",approval:"✅",rfq:"📋",vendor:"🏢"};
+  const bgs={invoice:C.blueL,po:C.goldL,approval:C.greenL,rfq:C.purpleL,vendor:C.tealL};
+  const filtered=data.logs.filter(l=>filter==="all"||l.type===filter);
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
+        <div style={{display:"flex",gap:6}}>{types.map(t=><button key={t} style={{...S.btn("ghost",true),background:filter===t?C.navy:"transparent",color:filter===t?C.white:C.textM,borderColor:filter===t?C.navy:C.border}} onClick={()=>setFilter(t)}>{t.toUpperCase()}</button>)}</div>
+        <button style={S.btn("ghost")} onClick={()=>downloadCSV(`AuditLog_${today()}.csv`,["ID","Action","User","Time","Type"],data.logs.map(l=>[l.id,l.action,uName(l.user),l.time,l.type]))}>⬇ Export Log</button>
+      </div>
+      <div style={S.card}>
+        {filtered.map((l,i)=>(
+          <div key={l.id} style={{display:"flex",gap:14,padding:"14px 0",borderBottom:i<filtered.length-1?`1px solid ${C.border}`:"none"}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0}}>
+              <div style={{width:38,height:38,borderRadius:10,background:bgs[l.type]||C.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{icons[l.type]||"📝"}</div>
+              {i<filtered.length-1&&<div style={{width:1,height:18,background:C.border,marginTop:4}}/>}
+            </div>
+            <div style={{flex:1}}><div style={{fontSize:14,color:C.text,fontWeight:500}}>{l.action}</div><div style={{fontSize:12,color:C.textL,marginTop:4}}>By <strong style={{color:C.textM}}>{uName(l.user)}</strong> · {l.time}</div></div>
+            <span style={{...S.badge(l.type==="invoice"?"sent":l.type==="approval"?"approved":"active"),flexShrink:0,alignSelf:"flex-start"}}>{l.type}</span>
+          </div>
+        ))}
+        {filtered.length===0&&<div style={{textAlign:"center",padding:40,color:C.textL}}>No logs found.</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Reports ───────────────────────────────────────────────────────────────────
+function Reports({data,users}){
+  const[modal,setModal]=useState(false);
+  const[type,setType]=useState("vendor_summary");const[fmt2,setFmt2]=useState("csv");
+  const[dFrom,setDFrom]=useState("2025-07-01");const[dTo,setDTo]=useState("2025-07-31");
+  const[done,setDone]=useState(null);
+  const uName=id=>users.find(u=>u.id===id)?.name||id;
+  const totalSpend=data.orders.reduce((s,o)=>s+o.total,0);
+  const vendorSpend=data.vendors.map(v=>({...v,spend:data.orders.filter(o=>o.vendorId===v.id).reduce((s,o)=>s+o.total,0)})).sort((a,b)=>b.spend-a.spend);
+  const maxS=Math.max(...vendorSpend.map(v=>v.spend),1);
+  const monthly=[{m:"Jan",s:45000},{m:"Feb",s:78000},{m:"Mar",s:120000},{m:"Apr",s:92000},{m:"May",s:143000},{m:"Jun",s:87000},{m:"Jul",s:totalSpend}];
+  const maxM=Math.max(...monthly.map(x=>x.s));
+
+  const RPTS=[
+    {id:"vendor_summary",l:"Vendor Summary",icon:"🏢",d:"All vendor details & status"},
+    {id:"rfq_status",l:"RFQ Status Report",icon:"📋",d:"RFQs with status & vendors"},
+    {id:"quotation_analysis",l:"Quotation Analysis",icon:"💬",d:"Price & delivery comparison"},
+    {id:"po_report",l:"Purchase Order Report",icon:"📦",d:"POs with amounts & vendors"},
+    {id:"invoice_report",l:"Invoice Register",icon:"🧾",d:"Invoice status & due dates"},
+    {id:"spend_analysis",l:"Spend Analysis",icon:"💰",d:"Spend by vendor & category"},
+    {id:"approval_log",l:"Approval Log",icon:"✅",d:"All approval decisions"},
+    {id:"user_report",l:"User Report",icon:"👥",d:"System users & roles"},
+  ];
+
+  const generate=()=>{
+    const r=RPTS.find(x=>x.id===type);
+    let h=[],rows=[];
+    if(type==="vendor_summary"){h=["ID","Name","Category","GST","Email","Phone","City","Status","Rating"];rows=data.vendors.map(v=>[v.id,v.name,v.category,v.gst,v.email,v.phone,v.city,v.status,v.rating]);}
+    else if(type==="rfq_status"){h=["RFQ ID","Title","Status","Created","Deadline","Created By","Items","Vendors","Quotations"];rows=data.rfqs.map(r2=>[r2.id,r2.title,r2.status,r2.createdAt,r2.deadline,uName(r2.createdBy),r2.items.length,r2.vendors.length,data.quotations.filter(q=>q.rfqId===r2.id).length]);}
+    else if(type==="quotation_analysis"){h=["ID","RFQ","Vendor","Price","Delivery","Status","Date"];rows=data.quotations.map(q=>{const r2=data.rfqs.find(x=>x.id===q.rfqId);const v=data.vendors.find(x=>x.id===q.vendorId);return[q.id,r2?.title||"",v?.name||"",q.price,q.delivery,q.status,q.submittedAt];});}
+    else if(type==="po_report"){h=["PO#","RFQ","Vendor","Subtotal","GST","Total","Status","Date"];rows=data.orders.map(o=>{const v=data.vendors.find(x=>x.id===o.vendorId);return[o.id,o.rfqId,v?.name||"",o.amount,o.tax,o.total,o.status,o.createdAt];});}
+    else if(type==="invoice_report"){h=["Invoice#","PO","Vendor","Total","Status","Date","Due"];rows=data.invoices.map(i=>{const v=data.vendors.find(x=>x.id===i.vendorId);return[i.id,i.poId,v?.name||"",i.total,i.status,i.createdAt,i.dueDate];});}
+    else if(type==="spend_analysis"){h=["Vendor","Category","POs","Total Spend"];rows=data.vendors.map(v=>[v.name,v.category,data.orders.filter(o=>o.vendorId===v.id).length,data.orders.filter(o=>o.vendorId===v.id).reduce((s,o)=>s+o.total,0)]);}
+    else if(type==="approval_log"){h=["ID","RFQ","Quotation","Requested By","Approved By","Status","Remarks","Date"];rows=data.approvals.map(a=>[a.id,a.rfqId,a.quotationId,uName(a.requestedBy),a.approvedBy?uName(a.approvedBy):"Pending",a.status,a.remarks,a.date]);}
+    else if(type==="user_report"){h=["ID","Name","Email","Role","Department","Status","Created","Last Login"];rows=users.map(u=>[u.id,u.name,u.email,ROLE_INFO[u.role]?.label||u.role,u.department||"",u.status,u.createdAt,u.lastLogin||"Never"]);}
+    downloadCSV(`VendorBridge_${r.l.replace(/\s+/g,"_")}_${today()}.csv`,h,rows);
+    setDone(r.l);
+  };
+
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+        <div style={{fontSize:13,color:C.textL}}>Procurement analytics for July 2025</div>
+        <button style={S.btn("purple")} onClick={()=>setModal(true)}>📄 Create Report File</button>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:24}}>
+        {[["Total Spend",fmt(totalSpend),C.teal,"This quarter"],["Active Vendors",data.vendors.filter(v=>v.status==="active").length,C.blue,"of "+data.vendors.length+" total"],["Avg Quote",fmt(data.quotations.reduce((s,q)=>s+q.price,0)/Math.max(data.quotations.length,1)),C.gold,"Per RFQ"],["PO Success","100%",C.green,"Approved & issued"]].map(([l,v,c,sub])=>(
+          <div key={l} style={{...S.card,borderTop:`4px solid ${c}`}}><div style={{fontSize:11,color:C.textL,fontWeight:700,textTransform:"uppercase",marginBottom:8}}>{l}</div><div style={{fontSize:24,fontWeight:900}}>{v}</div><div style={{fontSize:12,color:c,fontWeight:600,marginTop:6}}>{sub}</div></div>
+        ))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
+        <div style={S.card}>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:20}}>Monthly Spend Trend</div>
+          <div style={{display:"flex",alignItems:"flex-end",gap:8,height:150}}>
+            {monthly.map(m=>(
+              <div key={m.m} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+                <div style={{fontSize:9.5,color:C.textL,fontWeight:600}}>{m.s>=1000?Math.round(m.s/1000)+"k":m.s}</div>
+                <div style={{width:"100%",background:m.m==="Jul"?C.teal:`${C.blue}60`,borderRadius:"4px 4px 0 0",minHeight:6,height:Math.max(6,m.s/maxM*130),transition:"height 0.4s"}}/>
+                <div style={{fontSize:11,color:C.textM,fontWeight:600}}>{m.m}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={S.card}>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:18}}>Vendor Spend Share</div>
+          {vendorSpend.map(v=>(
+            <div key={v.id} style={{marginBottom:13}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:v.status==="active"?C.teal:C.textL}}/><span style={{fontSize:13,fontWeight:500}}>{v.name}</span></div>
+                <span style={{fontSize:13,fontWeight:700,color:v.spend>0?C.tealD:C.textL}}>{v.spend>0?fmt(v.spend):"No spend"}</span>
+              </div>
+              <div style={{height:7,background:C.bg,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${(v.spend/maxS)*100}%`,background:C.teal,borderRadius:4}}/></div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+        <div style={S.card}>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>Procurement Pipeline</div>
+          {[["RFQs Created",data.rfqs.length,C.blue,data.rfqs.filter(r=>r.status==="active").length+" active"],["Quotations",data.quotations.length,C.teal,data.quotations.filter(q=>q.status==="approved").length+" approved"],["Purchase Orders",data.orders.length,C.purple,fmt(totalSpend)+" total value"],["Invoices",data.invoices.length,C.gold,data.invoices.filter(i=>i.status==="paid").length+" paid"]].map(([l,v,c,sub])=>(
+            <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:`1px solid ${C.border}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:10,height:10,borderRadius:"50%",background:c}}/><div><div style={{fontSize:13.5,fontWeight:500}}>{l}</div><div style={{fontSize:11.5,color:C.textL}}>{sub}</div></div></div>
+              <div style={{fontSize:24,fontWeight:900,color:c}}>{v}</div>
+            </div>
+          ))}
+        </div>
+        <div style={S.card}>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>Vendor Performance</div>
+          <table style={S.table}>
+            <thead><tr>{["Vendor","Rating","Quotes","POs","Status"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+            <tbody>{data.vendors.map(v=>(
+              <tr key={v.id}><td style={S.td}><div style={{fontWeight:600}}>{v.name}</div><div style={{fontSize:11,color:C.textL}}>{v.category}</div></td><td style={S.td}><Stars n={v.rating}/></td><td style={S.td}>{data.quotations.filter(q=>q.vendorId===v.id).length}</td><td style={S.td}>{data.orders.filter(o=>o.vendorId===v.id).length}</td><td style={S.td}><span style={S.badge(v.status)}>{v.status}</span></td></tr>
+            ))}</tbody>
+          </table>
+        </div>
+      </div>
+
+      {modal&&(
+        <div style={S.modal}><div style={S.mbox(680)}>
+          <div style={S.mhead}><div style={{display:"flex",gap:12,alignItems:"center"}}><div style={{width:40,height:40,borderRadius:11,background:C.purpleL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📄</div><div><div style={{fontSize:17,fontWeight:800}}>Create Report File</div><div style={{fontSize:12,color:C.textL,marginTop:2}}>Generate & download procurement data</div></div></div><button style={{...S.btn("ghost"),fontSize:22,padding:"2px 8px"}} onClick={()=>{setModal(false);setDone(null);}}>×</button></div>
+          <div style={{padding:"22px 28px"}}>
+            {done&&<div style={{background:C.greenL,border:`1px solid #6EE7B7`,borderRadius:10,padding:"12px 16px",marginBottom:18,display:"flex",gap:10,alignItems:"center"}}><span style={{fontSize:18}}>✅</span><div><div style={{fontWeight:700,color:C.greenD}}>Downloaded!</div><div style={{color:C.greenD,fontSize:12,marginTop:2}}>"{done}" saved to Downloads.</div></div></div>}
+            <div style={{marginBottom:18}}>
+              <label style={S.label}>Report Type</label>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                {RPTS.map(r=>(
+                  <label key={r.id} style={{display:"flex",gap:10,padding:"12px 14px",borderRadius:11,border:`2px solid ${type===r.id?C.purple:C.border}`,background:type===r.id?C.purpleL:C.white,cursor:"pointer",transition:"all 0.15s"}}>
+                    <input type="radio" checked={type===r.id} onChange={()=>setType(r.id)} style={{accentColor:C.purple,marginTop:2}}/>
+                    <div><div style={{fontWeight:700,fontSize:13,color:type===r.id?C.purple:C.text}}>{r.icon} {r.l}</div><div style={{fontSize:11.5,color:C.textL,marginTop:3}}>{r.d}</div></div>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:18}}>
+              <div><label style={S.label}>Date From</label><input type="date" style={S.input} value={dFrom} onChange={e=>setDFrom(e.target.value)}/></div>
+              <div><label style={S.label}>Date To</label><input type="date" style={S.input} value={dTo} onChange={e=>setDTo(e.target.value)}/></div>
+              <div><label style={S.label}>Format</label><select style={S.input} value={fmt2} onChange={e=>setFmt2(e.target.value)}><option value="csv">CSV (Excel)</option></select></div>
+            </div>
+          </div>
+          <div style={S.mfoot}><button style={S.btn("ghost")} onClick={()=>{setModal(false);setDone(null);}}>Close</button><button style={S.btn("purple")} onClick={generate}>⬇ Download Report</button></div>
+        </div></div>
+      )}
+    </div>
+  );
+}
+
+// ─── Profile ───────────────────────────────────────────────────────────────────
+function Profile({user,setUser,users,setUsers,addToast}){
+  const[form,setForm]=useState({...user,newPass:"",confirmPass:""});
+  const save=()=>{
+    if(form.newPass){if(form.newPass!==form.confirmPass){addToast("Passwords don't match","error");return;}if(form.newPass.length<6){addToast("Password too short","error");return;}setUsers(u=>u.map(x=>x.id===user.id?{...x,...form,password:form.newPass}:x));setUser(u=>({...u,...form,password:form.newPass}));addToast("Profile updated");}
+    else{setUsers(u=>u.map(x=>x.id===user.id?{...x,...form}:x));setUser(u=>({...u,...form}));addToast("Profile updated");}
+  };
+  const ri=ROLE_INFO[user.role];
+  return(
+    <div style={{maxWidth:680}}>
+      <div style={{...S.card,marginBottom:20}}>
+        <div style={{display:"flex",gap:20,alignItems:"center",marginBottom:24}}>
+          <div style={{width:72,height:72,borderRadius:18,background:ri?.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,fontWeight:900,color:ri?.color}}>{user.avatar}</div>
+          <div><div style={{fontSize:22,fontWeight:900}}>{user.name}</div><div style={{...S.badge("active"),background:ri?.bg,color:ri?.color,marginTop:6,padding:"5px 14px",fontSize:13}}>{ri?.icon} {ri?.label}</div></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+          {[["name","Full Name"],["email","Email Address"],["phone","Phone Number"],["department","Department"]].map(([k,l])=>(
+            <div key={k}><label style={S.label}>{l}</label><input style={S.input} value={form[k]||""} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))}/></div>
+          ))}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
+          <div><label style={S.label}>New Password</label><input style={S.input} type="password" value={form.newPass} onChange={e=>setForm(f=>({...f,newPass:e.target.value}))} placeholder="Leave blank to keep current"/></div>
+          <div><label style={S.label}>Confirm Password</label><input style={S.input} type="password" value={form.confirmPass} onChange={e=>setForm(f=>({...f,confirmPass:e.target.value}))} placeholder="Repeat new password"/></div>
+        </div>
+        <button style={S.btn("primary")} onClick={save}>Save Changes</button>
+      </div>
+      <div style={S.card}>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>Your Permissions</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {Object.entries(PERMISSIONS[user.role]||{}).map(([k,v])=>(
+            <div key={k} style={{display:"flex",gap:8,alignItems:"center",padding:"8px 12px",borderRadius:8,background:v?C.greenL:C.bg}}>
+              <span style={{color:v?C.green:C.textL,fontSize:16}}>{v?"✓":"✗"}</span>
+              <span style={{fontSize:13,color:v?C.greenD:C.textL,fontWeight:v?600:400}}>{k.replace(/([A-Z])/g," $1").replace("can","").trim()}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── NAV ───────────────────────────────────────────────────────────────────────
+const NAV=[
+  {section:"Main",items:[{id:"dashboard",l:"Dashboard",e:"🏠"},{id:"profile",l:"My Profile",e:"👤"}]},
+  {section:"Procurement",items:[{id:"vendors",l:"Vendors",e:"🏢"},{id:"rfqs",l:"RFQ Management",e:"📋"},{id:"quotations",l:"Quotations",e:"💬"},{id:"compare",l:"Compare Quotes",e:"⚖️"}]},
+  {section:"Operations",items:[{id:"approvals",l:"Approvals",e:"✅"},{id:"orders",l:"Purchase Orders",e:"📦"},{id:"invoices",l:"Invoices",e:"🧾"}]},
+  {section:"Intelligence",items:[{id:"logs",l:"Activity Logs",e:"📜"},{id:"reports",l:"Reports",e:"📊"}]},
+  {section:"Admin",items:[{id:"users",l:"User Management",e:"👥"}],adminOnly:true},
+];
+const TITLES={dashboard:"Dashboard",vendors:"Vendor Management",rfqs:"RFQ Management",quotations:"Quotations",compare:"Quotation Comparison",approvals:"Approval Workflow",orders:"Purchase Orders",invoices:"Invoice Management",logs:"Activity Logs",reports:"Reports & Analytics",users:"User Management",profile:"My Profile"};
+
+// ─── App Root ──────────────────────────────────────────────────────────────────
+export default function App(){
+  const[users,setUsers]=useState(INIT_USERS);
+  const[user,setUser]=useState(null);
+  const[page,setPage]=useState("dashboard");
+  const[data,setData]=useState(INIT_DATA);
+  const[toasts,setToasts]=useState([]);
+  const[notifOpen,setNotifOpen]=useState(false);
+  const[reportModal,setReportModal]=useState(false);
+
+  useEffect(()=>{const l=document.createElement("link");l.href=FONT;l.rel="stylesheet";document.head.appendChild(l);},[]);
+
+  const addToast=useCallback((msg,type="success")=>{
+    const id=Date.now();
+    setToasts(t=>[...t,{id,msg,type}]);
+    setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3500);
+  },[]);
+
+  const handleLogin=u=>{setUser({...u,lastLogin:"Just now"});setUsers(prev=>prev.map(x=>x.id===u.id?{...x,lastLogin:"Just now"}:x));};
+  const handleRegister=u=>{setUsers(prev=>[...prev,u]);setUser(u);addToast(`Account created! Welcome, ${u.name}`);};
+
+  if(!user) return <AuthScreen users={users} onLogin={handleLogin} onRegister={handleRegister}/>;
+
+  const perms=PERMISSIONS[user.role]||{};
+  const pending=data.approvals.filter(a=>a.status==="pending").length;
+
+  // inject users into data for lookups
+  const dataWithUsers={...data,_users:users};
+
+  const SCREENS={
+    dashboard:<Dashboard data={dataWithUsers} users={users} user={user} perms={perms} setPage={setPage}/>,
+    vendors:<Vendors data={dataWithUsers} setData={setData} perms={perms} user={user} addToast={addToast}/>,
+    rfqs:<RFQs data={dataWithUsers} setData={setData} perms={perms} user={user} addToast={addToast}/>,
+    quotations:<Quotations data={dataWithUsers} setData={setData} perms={perms} user={user} addToast={addToast}/>,
+    compare:<Compare data={dataWithUsers}/>,
+    approvals:<Approvals data={dataWithUsers} setData={setData} perms={perms} user={user} addToast={addToast}/>,
+    orders:<Orders data={dataWithUsers} setData={setData} perms={perms} user={user} addToast={addToast}/>,
+    invoices:<Invoices data={dataWithUsers} setData={setData} addToast={addToast}/>,
+    logs:<Logs data={dataWithUsers} users={users}/>,
+    reports:<Reports data={dataWithUsers} users={users}/>,
+    users:<UserMgmt users={users} setUsers={setUsers} currentUser={user} addToast={addToast} setData={setData}/>,
+    profile:<Profile user={user} setUser={setUser} users={users} setUsers={setUsers} addToast={addToast}/>,
+  };
+
+  return(
+    <div style={S.app}>
+      {/* SIDEBAR */}
+      <div style={S.sidebar}>
+        <div style={{padding:"22px 20px 18px",borderBottom:`1px solid ${C.navyM}`}}><Logo size={36} showText={true}/></div>
+        <div style={{flex:1,overflowY:"auto",padding:"8px 0"}}>
+          {NAV.filter(sec=>!sec.adminOnly||perms.canManageUsers).map(sec=>(
+            <div key={sec.section}>
+              <div style={{color:"#334155",fontSize:9.5,fontWeight:800,letterSpacing:"1.2px",padding:"14px 22px 5px",textTransform:"uppercase"}}>{sec.section}</div>
+              {sec.items.map(item=>{
+                const active=page===item.id;
+                const notif2=item.id==="approvals"&&pending>0;
+                return(
+                  <div key={item.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 22px",cursor:"pointer",borderLeft:`3px solid ${active?C.teal:"transparent"}`,background:active?`${C.teal}14`:"transparent",color:active?C.teal:"#64748B",fontSize:13.5,fontWeight:active?700:400,transition:"all 0.12s"}} onClick={()=>setPage(item.id)}>
+                    <span style={{fontSize:16,width:20,textAlign:"center"}}>{item.e}</span>
+                    <span style={{flex:1}}>{item.l}</span>
+                    {notif2&&<div style={{width:20,height:20,borderRadius:"50%",background:C.red,color:C.white,fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>{pending}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+          <div style={{padding:"12px 18px 6px"}}>
+            <button style={{...S.btn("ghost"),width:"100%",justifyContent:"center",background:`${C.purple}12`,color:C.purple,outline:`1px solid ${C.purple}25`}} onClick={()=>setPage("reports")}>📄 Create Report File</button>
+          </div>
+        </div>
+        <div style={{padding:"14px 18px",borderTop:`1px solid ${C.navyM}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>setPage("profile")}>
+            <div style={{width:36,height:36,borderRadius:10,background:ROLE_INFO[user.role]?.bg||C.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:ROLE_INFO[user.role]?.color||C.tealD,flexShrink:0}}>{user.avatar}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{color:C.white,fontSize:13,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.name}</div>
+              <div style={{color:"#475569",fontSize:11,marginTop:1}}>{ROLE_INFO[user.role]?.label}</div>
+            </div>
+            <button style={{...S.btn("ghost",true),color:"#475569",padding:"4px 8px",fontSize:13,flexShrink:0}} onClick={e=>{e.stopPropagation();setUser(null);setPage("dashboard");}} title="Sign Out">⏏</button>
+          </div>
+        </div>
+      </div>
+
+      {/* MAIN */}
+      <div style={S.main}>
+        <div style={S.topbar}>
+          <div>
+            <div style={{fontSize:19,fontWeight:900,color:C.text}}>{TITLES[page]||"VendorBridge"}</div>
+            <div style={{fontSize:11.5,color:C.textL,marginTop:2}}>VendorBridge Procurement ERP · {new Date().toLocaleDateString("en-IN")}</div>
+          </div>
+          <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            {!perms.canViewReports&&null}
+            <button style={S.btn("ghost",true)} onClick={()=>setPage("reports")}>📊 Reports</button>
+            <div style={{position:"relative"}}>
+              <button style={{...S.btn("ghost",true),fontSize:18,padding:"8px 10px",position:"relative"}} onClick={()=>setNotifOpen(o=>!o)}>
+                🔔
+                {pending>0&&<span style={{position:"absolute",top:4,right:4,width:16,height:16,borderRadius:"50%",background:C.red,color:C.white,fontSize:9,fontWeight:900,display:"inline-flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>{pending}</span>}
+              </button>
+              {notifOpen&&(
+                <div style={{position:"absolute",right:0,top:46,width:320,background:C.white,borderRadius:14,border:`1px solid ${C.border}`,zIndex:100,boxShadow:"0 8px 32px rgba(0,0,0,0.12)",overflow:"hidden"}}>
+                  <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:800,fontSize:14}}>Notifications</div>
+                  {data.approvals.filter(a=>a.status==="pending").map(a=>{const rfq=data.rfqs.find(r=>r.id===a.rfqId);return(
+                    <div key={a.id} style={{padding:"13px 18px",borderBottom:`1px solid ${C.border}`,cursor:"pointer",transition:"background 0.1s"}} onClick={()=>{setPage("approvals");setNotifOpen(false);}}>
+                      <div style={{fontSize:13.5,fontWeight:600}}>⏳ Approval needed</div>
+                      <div style={{fontSize:12,color:C.textL,marginTop:3}}>{rfq?.title} · Click to review</div>
+                    </div>
+                  );})}
+                  {pending===0&&<div style={{padding:"20px",textAlign:"center",color:C.green,fontWeight:600}}>✅ All clear!</div>}
+                </div>
+              )}
+            </div>
+            <div style={{width:36,height:36,borderRadius:10,background:ROLE_INFO[user.role]?.bg||C.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:ROLE_INFO[user.role]?.color||C.tealD,cursor:"pointer"}} onClick={()=>setPage("profile")} title="Profile">{user.avatar}</div>
+          </div>
+        </div>
+        <div style={S.content} onClick={()=>notifOpen&&setNotifOpen(false)}>
+          {SCREENS[page]||SCREENS.dashboard}
+        </div>
+      </div>
+
+      <Toast toasts={toasts}/>
+    </div>
+  );
+}
